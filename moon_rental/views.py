@@ -149,9 +149,7 @@ def bid(request, lot_id):
             messages.error(request, " ".join(exc.messages))
     else:
         messages.error(request, "Enter a positive bid with at most two decimal places.")
-    url = reverse("moon_rental:auction", args=[lot.auction_id])
-    query = request.GET.urlencode()
-    return redirect(f"{url}?{query}" if query else url)
+    return redirect(reverse("moon_rental:auction", args=[lot.auction_id], query=request.GET))
 
 
 def moon_selection(request, form_class, field_name):

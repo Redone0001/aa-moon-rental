@@ -2,6 +2,7 @@ import json
 from datetime import timedelta
 from importlib import import_module
 from types import SimpleNamespace
+from urllib.parse import urlsplit
 
 import pytest
 from django.apps import apps
@@ -251,6 +252,17 @@ def test_large_auction_is_paginated(client, auction, pilot):
     assert len(response.context["rows"]) == 24
     assert response.context["lots"].paginator.count == 51
     assert len(client.get(url + "?page=3").context["rows"]) == 3
+
+
+def test_bid_redirect_stays_on_auction_with_hostile_query_values(client, auction, pilot):
+    client.force_login(pilot)
+    query = "?filter-q=https://example.invalid/&next=//example.invalid/&page=1"
+    response = client.post(
+        reverse("moon_rental:bid", args=[auction.lots.get().pk]) + query, {"amount": "1000"}
+    )
+    target = urlsplit(response.url)
+    assert not target.scheme and not target.netloc
+    assert target.path == reverse("moon_rental:auction", args=[auction.pk])
 
 
 def test_migration_indexes_existing_survey_snapshot(moon):
