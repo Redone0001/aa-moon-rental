@@ -41,6 +41,27 @@
     document.addEventListener("reset", () => setTimeout(refresh, 0));
 })();
 
+document.querySelectorAll("[data-moon-selector]").forEach((selector) => {
+    const form = selector.closest("form");
+    const counter = form.querySelector("[data-moon-selection-count]");
+    const multiple = selector.dataset.multiple === "true";
+    const update = () => {
+        const checked = selector.querySelectorAll("input:checked");
+        if (multiple) {
+            const kept = JSON.parse(selector.querySelector('input[name$="_kept"]').value);
+            counter.textContent = new Set([...kept, ...[...checked].map((input) => input.value)]).size;
+        } else {
+            const previous = selector.querySelector('input[type="hidden"]');
+            counter.textContent = checked.length || (previous ? 1 : 0);
+            const outside = form.querySelector("[data-moon-outside-selection]");
+            if (outside) outside.hidden = checked.length > 0;
+        }
+    };
+    selector.addEventListener("change", update);
+    window.addEventListener("pageshow", update);
+    update();
+});
+
 document.addEventListener("click", async (event) => {
     const button = event.target.closest(".mr-copy");
     if (!button) return;

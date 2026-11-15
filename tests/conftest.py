@@ -54,6 +54,7 @@ def moon(db):
         name="J-A5QD IV - 12",
         solar_system="J-A5QD",
         region="Vale of the Silent",
+        constellation="A3-T8B",
         rarity=64,
         synced_at=timezone.now(),
         composition=[

@@ -14,6 +14,10 @@
 .mr-app .btn-outline-secondary { color: inherit; border-color: rgba(127, 127, 127, .65); }
 .mr-app .btn-outline-secondary:hover { background: rgba(127, 127, 127, .2); }
 .mr-form { max-width: 760px; }
+.mr-selection-form { max-width: 1120px; }
+.mr-moon-choices { max-height: 34rem; overflow-y: auto; }
+.mr-moon-choice { cursor: pointer; }
+.mr-moon-choice:has(input:checked) { border-color: var(--bs-info) !important; background: rgba(var(--bs-info-rgb), .08); }
 .mr-auction-moons { min-height: 3rem; }
 .mr-app .btn { white-space: nowrap; }
 @media (max-width: 767px) {

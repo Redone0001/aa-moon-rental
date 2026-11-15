@@ -25,8 +25,9 @@ class Moon(models.Model):
     id = models.PositiveBigIntegerField(primary_key=True)
     name = models.CharField(max_length=255)
     solar_system = models.CharField(max_length=255)
-    region = models.CharField(max_length=255)
-    rarity = models.PositiveIntegerField(default=0)
+    region = models.CharField(max_length=255, db_index=True)
+    constellation = models.CharField(max_length=255, blank=True, default="", db_index=True)
+    rarity = models.PositiveIntegerField(default=0, db_index=True)
     composition = models.JSONField(default=list)
     estimated_value = models.DecimalField(max_digits=24, decimal_places=2, null=True)
     available = models.BooleanField(default=True)
@@ -49,6 +50,20 @@ class Moon(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class SurveyOre(models.Model):
+    """Indexed ore membership in the local survey snapshot."""
+
+    moon = models.ForeignKey(Moon, on_delete=models.CASCADE, related_name="survey_ores")
+    type_id = models.PositiveIntegerField(db_index=True)
+    name = models.CharField(max_length=255)
+
+    class Meta:
+        default_permissions = ()
+        constraints = [
+            models.UniqueConstraint(fields=["moon", "type_id"], name="mr_unique_survey_ore")
+        ]
 
 
 class Auction(models.Model):

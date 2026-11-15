@@ -1,0 +1,9 @@
+{% load django_bootstrap5 %}
+<div class="row g-3 align-items-end">
+  {% for field in filters %}<div class="{% if field.name == 'q' %}col-12{% else %}col-12 col-sm-6 col-lg-3{% endif %}">{% bootstrap_field field wrapper_class="" success_css_class="" %}</div>{% endfor %}
+</div>
+<div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+  <button class="btn btn-outline-info" type="submit" {% if selection_name %}name="action" value="filter" formnovalidate{% endif %}>Apply filters</button>
+  {% if selection_name %}<button class="btn btn-outline-secondary" type="submit" name="action" value="clear_filters" formnovalidate>Clear filters</button>{% else %}<a class="btn btn-outline-secondary" href="{{ request.path }}">Clear filters</a>{% endif %}
+  <span class="small text-body-secondary">Filters combine. Ore matches any positive amount in the survey.</span>
+</div>

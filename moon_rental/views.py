@@ -5,14 +5,16 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Count, OuterRef, Q, Subquery
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from esi.decorators import token_required
 
 from moon_rental import forms, tasks
-from moon_rental.models import Auction, AuctionLot, Invoice, Moon, Rental, WalletAccount
+from moon_rental.filters import MoonFilters
+from moon_rental.models import Auction, AuctionLot, Bid, Invoice, Moon, Rental, WalletAccount
 from moon_rental.permissions import (
     is_admin,
     is_manager,
@@ -101,21 +103,35 @@ def moon_detail(request, moon_id):
 @access()
 def auction_detail(request, auction_id):
     auction = get_object_or_404(Auction, pk=auction_id)
-    lots = auction.lots.select_related("moon").prefetch_related("bids__bidder")
-    # Materialize once; don't query the highest bid repeatedly in templates.
+    moons = Moon.objects.filter(lots__auction=auction)
+    filters = MoonFilters(request.GET, moons=moons)
+    highest = Bid.objects.filter(lot=OuterRef("pk")).order_by("-amount", "created_at", "pk")
+    lots = (
+        auction.lots.filter(moon__in=filters.apply(moons))
+        .select_related("moon")
+        .annotate(bid_count=Count("bids"), top_id=Subquery(highest.values("pk")[:1]))
+        .order_by("moon__name", "pk")
+    )
+    lot_page = Paginator(lots, 24).get_page(request.GET.get("page"))
+    # Fetch only the highest bids on this page, rather than every bid in the auction.
+    top_bids = Bid.objects.select_related("bidder").in_bulk(
+        lot.top_id for lot in lot_page if lot.top_id is not None
+    )
     rows = [
         {
             "lot": lot,
-            "top": max(lot.bids.all(), key=lambda b: (b.amount, -b.pk), default=None),
-            "count": len(lot.bids.all()),
+            "top": top_bids.get(lot.top_id),
+            "count": lot.bid_count,
         }
-        for lot in lots
+        for lot in lot_page
     ]
     return page(
         request,
         "auction",
         auction=auction,
         rows=rows,
+        filters=filters,
+        lots=lot_page,
         bidding_open=auction.settled_at is None and auction.ends_at > timezone.now(),
     )
 
@@ -133,14 +149,61 @@ def bid(request, lot_id):
             messages.error(request, " ".join(exc.messages))
     else:
         messages.error(request, "Enter a positive bid with at most two decimal places.")
-    return redirect("moon_rental:auction", auction_id=lot.auction_id)
+    return redirect(reverse("moon_rental:auction", args=[lot.auction_id], query=request.GET))
+
+
+def moon_selection(request, form_class, field_name):
+    """Filter/page POSTs keep terms and choices without attempting to create a lease."""
+    browsing = request.method == "POST" and (
+        request.POST.get("action") in {"filter", "clear_filters", "select_page", "clear_selection"}
+        or "moon_page" in request.POST
+        or "remove_moon" in request.POST
+    )
+    form = form_class(request.POST if request.method == "POST" and not browsing else None)
+    if browsing:
+        form.initial = {
+            name: field.widget.value_from_datadict(request.POST, request.FILES, name)
+            for name, field in form.fields.items()
+        }
+    moons = form.fields[field_name].queryset
+    filter_data = request.POST if request.method == "POST" else request.GET
+    if request.POST.get("action") == "clear_filters":
+        filter_data = {}
+    filters = MoonFilters(filter_data, moons=moons)
+    choices = Paginator(filters.apply(moons), 30).get_page(
+        request.POST.get("moon_page") if request.method == "POST" else request.GET.get("page")
+    )
+    # Materialize only this page: MySQL cannot use a sliced queryset in an IN subquery.
+    visible_moons = list(choices.object_list)
+    form.fields[field_name].widget.moons = visible_moons
+    values = form[field_name].value()
+    if field_name == "moon":
+        values = [values] if values else []
+    ids = [
+        int(pk)
+        for pk in values or []
+        if str(pk).isascii() and str(pk).isdigit() and len(str(pk)) < 20
+    ]
+    return (
+        form,
+        not browsing,
+        {
+            "filters": filters,
+            "moon_choices": choices,
+            "selection_name": field_name,
+            "selected_moons": moons.filter(pk__in=ids).exclude(
+                pk__in=[moon.pk for moon in visible_moons]
+            )[:10],
+            "selection_count": len(ids),
+        },
+    )
 
 
 @access(require_manager)
 @timezone.override("UTC")
 def create_auction(request):
-    form = forms.AuctionForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
+    form, saving, selection = moon_selection(request, forms.AuctionForm, "moons")
+    if request.method == "POST" and saving and form.is_valid():
         data = form.cleaned_data.copy()
         data["moon_ids"] = list(data.pop("moons").values_list("pk", flat=True))
         try:
@@ -152,6 +215,7 @@ def create_auction(request):
         request,
         "form",
         form=form,
+        **selection,
         title="Open a moon auction",
         submit="Open bidding",
         help_text="Select available moons and set the terms. Each moon is awarded independently to its highest bidder.",
@@ -160,8 +224,8 @@ def create_auction(request):
 
 @access(require_manager)
 def assign(request):
-    form = forms.AssignmentForm(request.POST or None)
-    if request.method == "POST" and form.is_valid():
+    form, saving, selection = moon_selection(request, forms.AssignmentForm, "moon")
+    if request.method == "POST" and saving and form.is_valid():
         data = form.cleaned_data.copy()
         data["moon_id"] = data.pop("moon").pk
         try:
@@ -174,6 +238,7 @@ def assign(request):
         request,
         "form",
         form=form,
+        **selection,
         title="Assign an available moon",
         submit="Assign moon",
         help_text="Existing assignments and moons reserved in an auction cannot be changed here.",
