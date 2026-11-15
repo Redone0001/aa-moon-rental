@@ -6,6 +6,7 @@ app_name = "moon_rental"
 urlpatterns = [
     path("", views.index, name="index"),
     path("moons/", views.moon_list, name="moons"),
+    path("moons/export/", views.moon_export, name="moon_export"),
     path("moons/<int:moon_id>/", views.moon_detail, name="moon"),
     path("my-moons/", views.my_moons, name="my_moons"),
     path("auctions/new/", views.create_auction, name="create_auction"),
