@@ -5,6 +5,7 @@ from decimal import Decimal
 import pytest
 from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import connection
 from django.utils import timezone
 
 from moon_rental.models import Auction, AuctionLot, Invoice, Rental
@@ -18,6 +19,20 @@ from moon_rental.services.rentals import (
 )
 
 pytestmark = pytest.mark.django_db
+
+
+def test_large_bid_retains_exact_cents_through_award(auction, pilot):
+    if connection.vendor == "sqlite":
+        pytest.skip("SQLite stores DECIMAL as floats; production precision is checked on MySQL.")
+    amount = Decimal("9007199254740993.01")
+    Auction.objects.filter(pk=auction.pk).update(billing_mode="once")
+    bid = place_bid(actor=pilot, lot_id=auction.lots.get().pk, amount=str(amount))
+    bid.refresh_from_db()
+    assert bid.amount == amount
+    settle_auction(auction.pk, at=auction.ends_at)
+    rental = Rental.objects.get(auction_lot=bid.lot)
+    assert rental.price == amount
+    assert rental.invoices.get().amount == amount
 
 
 @pytest.mark.parametrize("amount", [0, -1, "NaN", "Infinity", "0.001", "1e19", "bad"])

@@ -6,11 +6,14 @@ An Alliance Auth module for auctioning surveyed moons, managing leases and match
 
 ## Features
 
-- Admin-only synchronization of moon names, systems, regions, rarity, ore distribution and value estimates from `moonmining`. Source data is never modified. Removed moons cannot be offered again; existing leases remain accessible.
+- Admin-only synchronization of moon names, systems, regions, constellations, rarity, ore distribution and value estimates from `moonmining`. Source data is never modified. Removed moons cannot be offered again; existing leases remain accessible.
 - Managers open auctions for multiple available moons, choose a UTC deadline, term of 1–120 months, minimum bid and monthly (default) or single-payment billing.
 - Members see each moon's survey, highest bidder and bid amount. New bids must strictly exceed the current highest bid. Bids are binding; there is no withdrawal or early settlement endpoint.
+- Every ISK input shows a live compact preview, such as `1,2 b ISK`, while submitting the original exact amount. Previews use `k`, `m`, `b` and `t` for thousands, millions, billions and trillions.
+- Highest and winning bids use the same compact units (for example, `1,2b ISK`), with the full exact amount shown underneath.
 - Each moon is independently awarded at the deadline. Settlement is automatic and repeatable. An admin can end/correct an assignment; managers cannot alter existing leases, including auction awards.
 - Managers can directly assign available moons at a fixed rent. Members see current and past leases under **My moons**.
+- Auction creation and direct assignment offer paginated moon selectors with combined region, constellation, rarity and survey-ore filters, plus moon/system search. Selections and rental terms survive filtering and page changes. Auction selection supports selecting a page, removing individual selections and clearing selections. The bidding page has the same filters and pagination.
 - Calendar-month invoices, copyable payment references such as `moon-rental-A1B2.C3D4`, exact ISK amounts and recipient names. Managers see open, paid and void invoices for all renters; members see only their own.
 - Multiple SSO-authorized character or corporation wallets, with exactly one default once connected. Corporations read **master wallet / division 1 only**.
 - Incoming donations are matched by invoice reference. Partial payments work; duplicate journal entries cannot pay twice. Only matched payment receipts are stored, never the raw wallet journal.
@@ -51,6 +54,8 @@ CELERYBEAT_SCHEDULE["moon-rental-retention"] = {
 
 Run `python manage.py migrate` and `python manage.py collectstatic --noinput`, then restart Auth's web, Celery worker and beat services. The app registers its own menu and URLs at `/moon-rental/`.
 
+Upgrades also require migration and static collection. Migration `0004` indexes ores from existing survey snapshots and backfills constellations from locally stored Eve Universe moons without ESI calls. If a constellation is missing locally, the next admin **Sync Moon Mining** fills it from the source survey.
+
 Add these scopes to the **existing Alliance Auth EVE developer application**, then use **Wallet accounts → Connect character / Connect corporation** as a rental admin:
 
 ```text
@@ -73,7 +78,7 @@ Assign permissions to AA groups/states in Django admin:
 Managers and admins inherit app capabilities; they do not need all three permissions. Merely being Django `is_staff` does not grant rental administration. Superusers have all capabilities. The app's Django admin model screens are read-only so assignments, money records and audit trails cannot be bypassed with ordinary model editing.
 
 1. A rental admin connects a payment wallet (the first becomes the default) and syncs Moon Mining.
-2. A manager opens an auction or assigns a free moon. A reserved or rented moon cannot be selected again.
+2. A manager opens an auction or assigns a free moon. Use **Find moons** to combine region, constellation, rarity and ore filters; ore matches any positive surveyed percentage, and rarity is the moon's overall survey class. Choose moons across pages before submitting the rental terms. A reserved or rented moon cannot be selected again.
 3. Members bid; the lifecycle task assigns winners on or after the deadline. No-bid moons become available again.
 4. Renters pay the invoice recipient in EVE, copying the reference into the ISK transfer reason. Wallet scans confirm payment.
 
@@ -122,6 +127,7 @@ playwright install chromium
 python manage.py runserver 127.0.0.1:8000 --noreload
 # In another terminal with the same venv:
 python scripts/screenshots.py
+python scripts/screenshot_filters.py
 ```
 
 Demo data uses fictional renters and survey values. Demo users have unusable passwords. The screenshot script creates a local Django session, exercises bidding and clipboard copying, and captures the real pages at desktop/mobile sizes and under Darkly/Flatly. **Never use test settings or seed scripts against a production database.**
@@ -133,7 +139,9 @@ Screenshots are of the running module inside Alliance Auth, using fictional data
 ![Auction in Alliance Auth Darkly](docs/screenshots/auction-darkly.png)
 ![Rental invoices](docs/screenshots/invoices-darkly.png)
 
-See [all screenshots](docs/screenshots/) for overview, catalogue, My moons, wallet settings, Flatly and mobile views.
+![Filtered moon selection in Alliance Auth Darkly](docs/screenshots/moon-filters-auction-darkly.png)
+
+See [all screenshots](docs/screenshots/) for overview, catalogue, My moons, wallet settings, filtered auction/assignment selectors, Flatly and mobile views.
 
 ## Collaboration and security
 

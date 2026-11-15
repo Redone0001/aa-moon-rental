@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 
-from moon_rental.models import Moon
+from moon_rental.models import Moon, SurveyOre
 from moon_rental.permissions import require_admin
 from moon_rental.services.rentals import audit
 
@@ -19,12 +19,13 @@ def sync_moons(*, actor):
     ).prefetch_related("products__ore_type")
     seen = []
     for moon in source:
-        Moon.objects.update_or_create(
+        snapshot, _ = Moon.objects.update_or_create(
             pk=moon.pk,
             defaults={
                 "name": moon.name,
                 "solar_system": moon.solar_system().name,
                 "region": moon.region().name,
+                "constellation": moon.solar_system().eve_constellation.name,
                 "rarity": moon.rarity_class,
                 "composition": [
                     {
@@ -40,6 +41,14 @@ def sync_moons(*, actor):
                 "available": True,
                 "synced_at": at,
             },
+        )
+        snapshot.survey_ores.all().delete()
+        SurveyOre.objects.bulk_create(
+            [
+                SurveyOre(moon=snapshot, type_id=p.ore_type_id, name=p.ore_type.name)
+                for p in moon.products.all()
+                if p.amount > 0
+            ]
         )
         seen.append(moon.pk)
     # Removed upstream moons remain visible to existing renters, but cannot be offered again.

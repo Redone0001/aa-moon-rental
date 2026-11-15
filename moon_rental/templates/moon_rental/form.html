@@ -1,2 +1,26 @@
 {% extends "moon_rental/base.html" %}{% load django_bootstrap5 %}
-{% block rental_content %}<div class="mr-form mx-auto"><h2 class="h3">{{ title }}</h2><p class="text-body-secondary mb-4">{{ help_text }}</p><div class="card"><div class="card-body p-4"><form method="post">{% csrf_token %}{% bootstrap_form form %}<div class="d-flex gap-2 mt-4"><button class="btn btn-info" type="submit">{{ submit }}</button><a class="btn btn-outline-secondary" href="{% url 'moon_rental:index' %}">Cancel</a></div></form></div></div></div>{% endblock %}
+{% block rental_content %}
+<div class="{% if selection_name %}mr-selection-form{% else %}mr-form{% endif %} mx-auto">
+  <h2 class="h3">{{ title }}</h2><p class="text-body-secondary mb-4">{{ help_text }}</p>
+  <form method="post">{% csrf_token %}{% bootstrap_form_errors form %}
+    {% if selection_name %}
+      <div class="card mb-4"><div class="card-body p-4">
+        <h3 class="h5 mb-3">Find moons</h3>
+        {% include "moon_rental/moon_filters.html" %}
+        <hr class="my-4">
+        <div class="d-flex flex-wrap gap-2 justify-content-between mb-3"><h3 class="h6 mb-0">{{ moon_choices.paginator.count }} available moon{{ moon_choices.paginator.count|pluralize }} match</h3><span class="small text-body-secondary">Page {{ moon_choices.number }} of {{ moon_choices.paginator.num_pages }}</span></div>
+        {% for field in form %}{% if field.name == selection_name %}{% bootstrap_field field show_label=False %}{% endif %}{% endfor %}
+        {% if moon_choices.has_other_pages %}<nav class="d-flex gap-2 mt-3" aria-label="Moon selection pages">{% if moon_choices.has_previous %}<button class="btn btn-sm btn-outline-secondary" type="submit" name="moon_page" value="{{ moon_choices.previous_page_number }}" formnovalidate>Previous moons</button>{% endif %}{% if moon_choices.has_next %}<button class="btn btn-sm btn-outline-secondary" type="submit" name="moon_page" value="{{ moon_choices.next_page_number }}" formnovalidate>Next moons</button>{% endif %}</nav>{% endif %}
+        <div class="border-top pt-3 mt-4" aria-live="polite"><strong><span data-moon-selection-count>{{ selection_count }}</span> selected</strong><span class="small text-body-secondary ms-2">Selections are kept when you filter or change pages.</span>
+          {% if selected_moons %}<div data-moon-outside-selection><p class="small text-body-secondary mt-2 mb-1">Selected outside this page (up to 10 shown):</p><ul class="list-unstyled small mb-0">{% for moon in selected_moons %}<li class="d-flex gap-2 align-items-center mb-1">{{ moon.name }}{% if selection_name == 'moons' %}<button class="btn btn-sm btn-link py-0" type="submit" name="remove_moon" value="{{ moon.pk }}" formnovalidate aria-label="Remove {{ moon.name }}">Remove</button>{% endif %}</li>{% endfor %}</ul></div>{% endif %}
+        </div>
+      </div></div>
+    {% endif %}
+    <div class="card"><div class="card-body p-4">
+      {% if selection_name %}<h3 class="h5 mb-3">Rental terms</h3>{% endif %}
+      {% for field in form %}{% if field.name != selection_name %}{% bootstrap_field field %}{% endif %}{% endfor %}
+      <div class="d-flex gap-2 mt-4"><button class="btn btn-info" type="submit" name="action" value="save">{{ submit }}</button><a class="btn btn-outline-secondary" href="{% url 'moon_rental:index' %}">Cancel</a></div>
+    </div></div>
+  </form>
+</div>
+{% endblock %}
