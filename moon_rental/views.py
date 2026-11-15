@@ -175,7 +175,9 @@ def moon_selection(request, form_class, field_name):
     choices = Paginator(filters.apply(moons), 30).get_page(
         request.POST.get("moon_page") if request.method == "POST" else request.GET.get("page")
     )
-    form.fields[field_name].widget.moons = choices.object_list
+    # Materialize only this page: MySQL cannot use a sliced queryset in an IN subquery.
+    visible_moons = list(choices.object_list)
+    form.fields[field_name].widget.moons = visible_moons
     values = form[field_name].value()
     if field_name == "moon":
         values = [values] if values else []
@@ -191,7 +193,9 @@ def moon_selection(request, form_class, field_name):
             "filters": filters,
             "moon_choices": choices,
             "selection_name": field_name,
-            "selected_moons": moons.filter(pk__in=ids).exclude(pk__in=choices.object_list)[:10],
+            "selected_moons": moons.filter(pk__in=ids).exclude(
+                pk__in=[moon.pk for moon in visible_moons]
+            )[:10],
             "selection_count": len(ids),
         },
     )
