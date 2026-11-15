@@ -4,6 +4,7 @@ from django import forms
 from django.contrib.auth import get_user_model
 
 from moon_rental.models import BillingMode, Moon
+from moon_rental.widgets import MoonSelect
 
 
 class IskInput(forms.NumberInput):
@@ -19,7 +20,7 @@ class TermsForm(forms.Form):
 class AuctionForm(TermsForm):
     title = forms.CharField(max_length=160)
     moons = forms.ModelMultipleChoiceField(
-        queryset=Moon.objects.none(), widget=forms.CheckboxSelectMultiple
+        queryset=Moon.objects.none(), widget=MoonSelect(multiple=True)
     )
     ends_at = forms.DateTimeField(
         label="Bidding deadline (UTC)",
@@ -52,7 +53,7 @@ class BidForm(forms.Form):
 
 
 class AssignmentForm(TermsForm):
-    moon = forms.ModelChoiceField(queryset=Moon.objects.none())
+    moon = forms.ModelChoiceField(queryset=Moon.objects.none(), widget=MoonSelect())
     renter = forms.ModelChoiceField(
         queryset=get_user_model().objects.filter(is_active=True).order_by("username")
     )
