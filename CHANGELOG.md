@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Export the moon catalogue to CSV, including all search results, survey composition, exact estimated values and rental/auction status.
 - Add combined region, constellation, rarity and survey-ore filters and moon/system search to auction creation, direct assignment and bidding.
 - Paginate moon choices, retain selections and terms across filters/pages, and support bulk page selection.
 - Index survey ore membership and backfill existing snapshots and locally known constellations.

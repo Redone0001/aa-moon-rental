@@ -13,6 +13,7 @@ from django.views.decorators.http import require_POST
 from esi.decorators import token_required
 
 from moon_rental import forms, tasks
+from moon_rental.exports import moon_catalogue_csv
 from moon_rental.filters import MoonFilters
 from moon_rental.models import Auction, AuctionLot, Bid, Invoice, Moon, Rental, WalletAccount
 from moon_rental.permissions import (
@@ -80,17 +81,29 @@ def index(request):
     )
 
 
-@access()
-def moon_list(request):
-    moons = Moon.objects.select_related("current_rental__renter", "reserved_lot__auction")
+def catalogue_moons(request):
+    moons = Moon.objects.order_by("name", "pk")
     query = request.GET.get("q", "").strip()[:150]
     if query:
         moons = moons.filter(
             Q(name__icontains=query) | Q(region__icontains=query) | Q(solar_system__icontains=query)
         )
+    return moons, query
+
+
+@access()
+def moon_list(request):
+    moons, query = catalogue_moons(request)
+    moons = moons.select_related("current_rental__renter", "reserved_lot__auction")
     return page(
         request, "moons", moons=Paginator(moons, 40).get_page(request.GET.get("page")), query=query
     )
+
+
+@access()
+def moon_export(request):
+    moons, _ = catalogue_moons(request)
+    return moon_catalogue_csv(moons)
 
 
 @access()
