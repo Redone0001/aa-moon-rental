@@ -4,6 +4,12 @@ from django import forms
 from django.contrib.auth import get_user_model
 
 from moon_rental.models import BillingMode, Moon
+from moon_rental.widgets import MoonSelect
+
+
+class IskInput(forms.NumberInput):
+    def __init__(self, attrs=None):
+        super().__init__({"data-isk-input": "", "inputmode": "decimal", **(attrs or {})})
 
 
 class TermsForm(forms.Form):
@@ -14,14 +20,19 @@ class TermsForm(forms.Form):
 class AuctionForm(TermsForm):
     title = forms.CharField(max_length=160)
     moons = forms.ModelMultipleChoiceField(
-        queryset=Moon.objects.none(), widget=forms.CheckboxSelectMultiple
+        queryset=Moon.objects.none(), widget=MoonSelect(multiple=True)
     )
     ends_at = forms.DateTimeField(
         label="Bidding deadline (UTC)",
         widget=forms.DateTimeInput(attrs={"type": "datetime-local"}),
     )
     minimum_bid = forms.DecimalField(
-        max_digits=20, decimal_places=2, min_value=Decimal("0.01"), initial=100000000
+        max_digits=20,
+        decimal_places=2,
+        min_value=Decimal("0.01"),
+        initial=100000000,
+        label="Minimum bid (ISK)",
+        widget=IskInput(),
     )
 
     def __init__(self, *args, **kwargs):
@@ -33,17 +44,25 @@ class AuctionForm(TermsForm):
 
 class BidForm(forms.Form):
     amount = forms.DecimalField(
-        max_digits=20, decimal_places=2, min_value=Decimal("0.01"), label="Your bid (ISK)"
+        max_digits=20,
+        decimal_places=2,
+        min_value=Decimal("0.01"),
+        label="Your bid (ISK)",
+        widget=IskInput(),
     )
 
 
 class AssignmentForm(TermsForm):
-    moon = forms.ModelChoiceField(queryset=Moon.objects.none())
+    moon = forms.ModelChoiceField(queryset=Moon.objects.none(), widget=MoonSelect())
     renter = forms.ModelChoiceField(
         queryset=get_user_model().objects.filter(is_active=True).order_by("username")
     )
     price = forms.DecimalField(
-        max_digits=20, decimal_places=2, min_value=Decimal("0.01"), label="Rent (ISK)"
+        max_digits=20,
+        decimal_places=2,
+        min_value=Decimal("0.01"),
+        label="Rent (ISK)",
+        widget=IskInput(),
     )
 
     def __init__(self, *args, **kwargs):

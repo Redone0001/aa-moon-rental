@@ -1,5 +1,10 @@
+from importlib import import_module
+from types import SimpleNamespace
+
 import pytest
+from django.apps import apps
 from django.core.exceptions import PermissionDenied
+from django.db import connection
 from django.utils import timezone
 from eveuniverse.models import (
     EveCategory,
@@ -14,7 +19,7 @@ from eveuniverse.models import (
 from moonmining.models import EveOreType, MoonProduct
 from moonmining.models import Moon as MiningMoon
 
-from moon_rental.models import Moon
+from moon_rental.models import Moon, SurveyOre
 from moon_rental.services.sync import sync_moons
 
 pytestmark = pytest.mark.django_db
@@ -43,14 +48,27 @@ def test_real_moonmining_adapter(admin_user, moon):
     assert sync_moons(actor=admin_user) == 1
     copy = Moon.objects.get(pk=eve_moon.pk)
     assert copy.name == "J-A5QD IV - 2" and copy.solar_system == "J-A5QD"
+    assert copy.constellation == "Test"
+    assert list(copy.survey_ores.values_list("type_id", "name")) == [(45506, "Loparite")]
     assert copy.composition == [{"type_id": 45506, "name": "Loparite", "percent": 35.0}]
     assert str(copy.estimated_value) == "123456.79"
+    # Existing installations can recover the same filters without a fresh ESI sync.
+    SurveyOre.objects.all().delete()
+    Moon.objects.filter(pk=copy.pk).update(constellation="")
+    populate = import_module("moon_rental.migrations.0004_moon_filters").populate_filters
+    populate(apps, SimpleNamespace(connection=connection))
+    copy.refresh_from_db()
+    assert copy.constellation == "Test"
+    assert list(copy.survey_ores.values_list("type_id", flat=True)) == [45506]
     moon.refresh_from_db()
     assert not moon.available
     source.value = 999
     source.save()
     assert sync_moons(actor=admin_user) == 1
     assert Moon.objects.count() == 2
+    source.products.all().update(amount=0)
+    sync_moons(actor=admin_user)
+    assert not copy.survey_ores.exists()
 
 
 def test_sync_restricted(manager):

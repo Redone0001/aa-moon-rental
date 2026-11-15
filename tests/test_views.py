@@ -85,3 +85,22 @@ def test_unauthorized_logged_in_user_rejected(client):
 
 def test_anonymous_redirects(client):
     assert client.get(reverse("moon_rental:index")).status_code == 302
+
+
+def test_payment_amounts_remain_machine_readable_in_other_locales(
+    client, manager, pilot, wallet, moon
+):
+    from django.utils.translation import override
+
+    assign_moon(
+        actor=manager,
+        moon_id=moon.pk,
+        renter=pilot,
+        price="123.45",
+        duration_months=1,
+        billing_mode="once",
+    )
+    client.force_login(pilot)
+    with override("fr"):
+        response = client.get(reverse("moon_rental:invoices"), HTTP_ACCEPT_LANGUAGE="fr")
+    assert b'data-copy="123.45"' in response.content

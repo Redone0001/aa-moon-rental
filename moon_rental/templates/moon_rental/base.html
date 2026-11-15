@@ -1,5 +1,5 @@
 {% extends "allianceauth/base-bs5.html" %}
-{% load static tz %}
+{% load static tz l10n %}
 {% block page_title %}Moon Rental{% endblock %}
 {% block extra_css %}<link rel="stylesheet" href="{% static 'moon_rental/rental.css' %}">{% endblock %}
 {% block content %}
@@ -16,7 +16,7 @@
         {% if rental_manager %}<a class="nav-link {% if request.resolver_match.url_name == 'rentals' %}active{% endif %}" href="{% url 'moon_rental:rentals' %}">Assignments</a>{% endif %}
         {% if rental_admin %}<a class="nav-link {% if request.resolver_match.url_name == 'wallets' %}active{% endif %}" href="{% url 'moon_rental:wallets' %}">Wallet accounts</a>{% endif %}
     </nav>
-    {% timezone "UTC" %}{% block rental_content %}{% endblock %}{% endtimezone %}
+    {% localize off %}{% timezone "UTC" %}{% block rental_content %}{% endblock %}{% endtimezone %}{% endlocalize %}
     <div class="text-body-secondary small border-top mt-5 pt-3 mb-3 d-flex justify-content-between flex-wrap gap-2"><span>Moon Rental · Alliance Auth</span><span>All dates and billing periods are UTC · ISK</span></div>
 </div>
 {% endblock %}
