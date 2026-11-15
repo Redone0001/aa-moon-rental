@@ -1,0 +1,21 @@
+name: Bug report
+description: Report a reproducible problem without private wallet data
+body:
+  - type: textarea
+    id: issue
+    attributes:
+      label: Problem and reproduction steps
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Module, Alliance Auth, moonmining and Python versions
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true

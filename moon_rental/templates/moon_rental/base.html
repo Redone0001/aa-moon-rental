@@ -1,0 +1,23 @@
+{% extends "allianceauth/base-bs5.html" %}
+{% load static tz %}
+{% block page_title %}Moon Rental{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'moon_rental/rental.css' %}">{% endblock %}
+{% block content %}
+<div class="mr-app container-fluid px-lg-4">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+        <div><div class="text-body-secondary small text-uppercase mr-eyebrow">Alliance services / Industry</div><h1 class="h2 mt-2 mb-0"><i class="fas fa-moon text-info me-2" aria-hidden="true"></i>Moon Rental</h1></div>
+        {% if rental_manager %}<div class="d-flex gap-2"><a class="btn btn-outline-secondary" href="{% url 'moon_rental:assign' %}">Assign moon</a><a class="btn btn-info" href="{% url 'moon_rental:create_auction' %}"><i class="fas fa-plus me-1" aria-hidden="true"></i> Open auction</a></div>{% endif %}
+    </div>
+    <nav class="nav nav-tabs mb-4" aria-label="Moon Rental">
+        <a class="nav-link {% if request.resolver_match.url_name == 'index' %}active{% endif %}" href="{% url 'moon_rental:index' %}">Overview</a>
+        <a class="nav-link {% if request.resolver_match.url_name == 'moons' or request.resolver_match.url_name == 'moon' %}active{% endif %}" href="{% url 'moon_rental:moons' %}">Moon catalogue</a>
+        <a class="nav-link {% if request.resolver_match.url_name == 'my_moons' %}active{% endif %}" href="{% url 'moon_rental:my_moons' %}">My moons</a>
+        <a class="nav-link {% if request.resolver_match.url_name == 'invoices' %}active{% endif %}" href="{% url 'moon_rental:invoices' %}">Invoices</a>
+        {% if rental_manager %}<a class="nav-link {% if request.resolver_match.url_name == 'rentals' %}active{% endif %}" href="{% url 'moon_rental:rentals' %}">Assignments</a>{% endif %}
+        {% if rental_admin %}<a class="nav-link {% if request.resolver_match.url_name == 'wallets' %}active{% endif %}" href="{% url 'moon_rental:wallets' %}">Wallet accounts</a>{% endif %}
+    </nav>
+    {% timezone "UTC" %}{% block rental_content %}{% endblock %}{% endtimezone %}
+    <div class="text-body-secondary small border-top mt-5 pt-3 mb-3 d-flex justify-content-between flex-wrap gap-2"><span>Moon Rental · Alliance Auth</span><span>All dates and billing periods are UTC · ISK</span></div>
+</div>
+{% endblock %}
+{% block extra_javascript %}<script src="{% static 'moon_rental/rental.js' %}" defer></script>{% endblock %}

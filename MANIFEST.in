@@ -1,0 +1,5 @@
+include LICENSE README.md CONTRIBUTING.md SECURITY.md CHANGELOG.md manage.py
+recursive-include moon_rental/templates *.html
+recursive-include moon_rental/static *.css *.js
+recursive-include tests *.py
+recursive-include scripts *.py

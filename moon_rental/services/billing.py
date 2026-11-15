@@ -1,0 +1,49 @@
+from dateutil.relativedelta import relativedelta
+from django.db import transaction
+from django.utils import timezone
+
+from moon_rental.models import BillingMode, Configuration, Invoice, Rental
+from moon_rental.services.rentals import require_default_wallet, utc_day
+
+
+@transaction.atomic
+def issue_invoices(rental_id, *, at=None):
+    at = at or timezone.now()
+    rental = Rental.objects.select_for_update().get(pk=rental_id)
+    today = utc_day(at)
+    last_day = min(today, rental.ends_on - relativedelta(days=1))
+    if rental.ended_at:
+        last_day = min(last_day, utc_day(rental.ended_at))
+    if rental.starts_on > last_day:
+        return 0
+    if rental.billing_mode == BillingMode.ONCE:
+        periods = [] if rental.billed_through else [rental.starts_on]
+    else:
+        period = (
+            (rental.billed_through + relativedelta(months=1))
+            if rental.billed_through
+            else rental.starts_on.replace(day=1)
+        )
+        if period < rental.starts_on:
+            period += relativedelta(months=1)
+        periods = []
+        while period <= last_day:
+            periods.append(period)
+            period += relativedelta(months=1)
+    missing = set(periods) - set(rental.invoices.values_list("period", flat=True))
+    if not missing:
+        return 0
+    # Serialize recipient selection with default changes and account disabling.
+    Configuration.objects.select_for_update().get(pk=1)
+    wallet = require_default_wallet()
+    for period in sorted(missing):
+        Invoice.objects.create(
+            rental=rental,
+            period=period,
+            amount=rental.price,
+            recipient=wallet,
+            recipient_name=wallet.name,
+        )
+    rental.billed_through = max(missing)
+    rental.save(update_fields=["billed_through"])
+    return len(missing)

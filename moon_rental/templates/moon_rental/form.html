@@ -1,0 +1,2 @@
+{% extends "moon_rental/base.html" %}{% load django_bootstrap5 %}
+{% block rental_content %}<div class="mr-form mx-auto"><h2 class="h3">{{ title }}</h2><p class="text-body-secondary mb-4">{{ help_text }}</p><div class="card"><div class="card-body p-4"><form method="post">{% csrf_token %}{% bootstrap_form form %}<div class="d-flex gap-2 mt-4"><button class="btn btn-info" type="submit">{{ submit }}</button><a class="btn btn-outline-secondary" href="{% url 'moon_rental:index' %}">Cancel</a></div></form></div></div></div>{% endblock %}

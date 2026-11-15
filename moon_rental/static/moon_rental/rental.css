@@ -1,0 +1,22 @@
+.mr-app { max-width: 1680px; }
+.mr-app .card { border-radius: .5rem; }
+.mr-app .table > :not(caption) > * > * { padding: 1.1rem 1.25rem; }
+.mr-app .table thead th { color: var(--bs-secondary-color); font-size: .75rem; text-transform: uppercase; letter-spacing: .055em; font-weight: 600; white-space: nowrap; }
+.mr-app .nav-tabs { gap: .25rem; }
+.mr-app .nav-link { padding: .8rem 1rem; }
+.mr-eyebrow { letter-spacing: .12em; font-size: .7rem; }
+.mr-intro { padding: .75rem 0; }
+.mr-numeric, .mr-reference { font-variant-numeric: tabular-nums; }
+.mr-reference { color: var(--bs-info); font-size: .95rem; white-space: nowrap; }
+.mr-composition { height: .3rem; background: rgba(127, 127, 127, .25); }
+.mr-bid-box { background: rgba(0, 0, 0, .12); }
+.mr-app .btn-outline-secondary { color: inherit; border-color: rgba(127, 127, 127, .65); }
+.mr-app .btn-outline-secondary:hover { background: rgba(127, 127, 127, .2); }
+.mr-form { max-width: 760px; }
+.mr-auction-moons { min-height: 3rem; }
+.mr-app .btn { white-space: nowrap; }
+@media (max-width: 767px) {
+  .mr-app .nav-tabs { flex-wrap: nowrap; overflow-x: auto; }
+  .mr-app .nav-link { white-space: nowrap; }
+  .mr-reference { font-size: .85rem; }
+}
