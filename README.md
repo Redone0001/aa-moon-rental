@@ -7,6 +7,7 @@ An Alliance Auth module for auctioning surveyed moons, managing leases and match
 ## Features
 
 - Admin-only synchronization of moon names, systems, regions, constellations, rarity, ore distribution and value estimates from `moonmining`. Source data is never modified. Removed moons cannot be offered again; existing leases remain accessible.
+- Optional integration with [aa-structures](https://pypi.org/project/aa-structures/) shows each moon's structure type and name, for example `Metenox Moon Drill "My metenox name"`, in the catalogue, moon details, assignment/auction selectors, rental assignments and My moons. Multiple structures are listed separately. Details come directly from locally synced Structures data and follow its visibility permissions.
 - The moon catalogue, individual catalogue details and **Export CSV** are restricted to rental managers and admins. CSV downloads include all moons matching the current search across every page, with moon IDs, names, systems, regions, constellations, rarity, survey composition, exact estimated monthly ISK values, status and UTC sync times. Files use UTF-8 with a BOM for spreadsheet compatibility; formula-like text is escaped.
 - Managers open auctions for multiple available moons, choose a rent start date (`dd/mm/yyyy`) and a UTC bidding deadline (`dd/mm/yyyy hh:mm`), term of 1–120 months, minimum bid and monthly (default) or single-payment billing. The rent starts at 00:00 UTC on a date after bidding closes, leaving time for in-game setup.
 - Members see each moon's survey, highest bidder and bid amount. **Copy 30-day ore** copies estimated uncompressed ore units as tab-separated item/quantity rows for appraisal tools and spreadsheets without displaying the ore list. An estimated 30-day gross ISK value appears when all required ore prices are available. New bids must strictly exceed the current highest bid. Bids are binding; there is no withdrawal or early settlement endpoint.
@@ -56,6 +57,10 @@ CELERYBEAT_SCHEDULE["moon-rental-retention"] = {
 Run `python manage.py migrate` and `python manage.py collectstatic --noinput`, then restart Auth's web, Celery worker and beat services. The app registers its own menu and URLs at `/moon-rental/`.
 
 Upgrades also require migration and static collection. Migration `0005` preserves existing auctions' original deadline-based rent starts. After upgrading, an admin must run **Sync Moon Mining** to populate the new 30-day estimates; the copy button stays disabled until sufficient source data is available. Migration `0004` indexes ores from existing survey snapshots and backfills constellations from locally stored Eve Universe moons without ESI calls. If a constellation is missing locally, the next admin **Sync Moon Mining** fills it from the source survey.
+
+For structure details, install and configure [aa-structures](https://aa-structures.readthedocs.io/) in the same Auth instance, including `"structures"` in `INSTALLED_APPS`. The optional dependency extra `.[structures]` installs aa-structures 4.x (4.1+), verified with Alliance Auth 5.6, Django 5.2, django-esi 10.1 and Eve Universe 2.2. Give viewers `structures.basic_access` plus the appropriate `structures.view_corporation_structures`, `structures.view_alliance_structures` or `structures.view_all_structures` permission. Rental permissions alone do not grant structure visibility.
+
+Structures must have a locally stored `eve_moon` link matching the surveyed moon's EVE ID; names and proximity are never guessed. Rename, removal and visibility changes appear on the next page load after Structures updates its local data. No Moon Rental migration or survey resync is needed for this integration. **No visible structure** means no linked structure is visible to that viewer, rather than proof that the moon is empty. Without Structures installed or basic access, the display reads **Unavailable**. CSV export continues to contain survey and rental data.
 
 Add these scopes to the **existing Alliance Auth EVE developer application**, then use **Wallet accounts → Connect character / Connect corporation** as a rental admin:
 
@@ -160,6 +165,8 @@ Screenshots are of the running module inside Alliance Auth, using fictional data
 ![Separate rent start and bidding deadline in Alliance Auth Flatly](docs/screenshots/auction-start-flatly.png)
 
 See [all screenshots](docs/screenshots/) for overview, catalogue, My moons, wallet settings, filtered auction/assignment selectors, Flatly and mobile views.
+
+Structure display examples: [catalogue (Darkly)](docs/screenshots/structures-catalogue-darkly.png), [catalogue (Flatly)](docs/screenshots/structures-catalogue-flatly.png), [assignments (Darkly)](docs/screenshots/structures-assignments-darkly.png) and [assignment selection (Flatly)](docs/screenshots/structures-selection-flatly.png).
 
 ## Collaboration and security
 

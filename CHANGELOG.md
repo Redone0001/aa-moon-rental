@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Show current structure types and names from optional aa-structures data in the moon catalogue, details, selectors and rental assignments, matching moon IDs and respecting Structures visibility permissions.
 - Copy fixed 30-day uncompressed ore quantities from auction cards, with a gross value estimate using snapshotted Moon Mining volume and pricing.
 - Add a separate day-first rent start date above the bidding deadline; award scheduled rentals at close and start the lease term and billing on the advertised start. Preserve legacy auction starts on upgrade.
 

@@ -25,6 +25,7 @@ from moon_rental.permissions import (
 )
 from moon_rental.services.extraction import ore_copy_text
 from moon_rental.services.rentals import assign_moon, audit, end_rental, open_auction, place_bid
+from moon_rental.services.structures import attach_moon_structures
 from moon_rental.services.sync import sync_moons
 from moon_rental.services.wallets import (
     SCOPES,
@@ -96,9 +97,9 @@ def catalogue_moons(request):
 def moon_list(request):
     moons, query = catalogue_moons(request)
     moons = moons.select_related("current_rental__renter", "reserved_lot__auction")
-    return page(
-        request, "moons", moons=Paginator(moons, 40).get_page(request.GET.get("page")), query=query
-    )
+    moons = Paginator(moons, 40).get_page(request.GET.get("page"))
+    attach_moon_structures(moons, user=request.user)
+    return page(request, "moons", moons=moons, query=query)
 
 
 @access(require_manager)
@@ -110,6 +111,7 @@ def moon_export(request):
 @access(require_manager)
 def moon_detail(request, moon_id):
     moon = get_object_or_404(Moon, pk=moon_id)
+    attach_moon_structures([moon], user=request.user)
     lots = moon.lots.select_related("auction").filter(auction__settled_at=None)
     return page(request, "moon_detail", moon=moon, lots=lots)
 
@@ -199,6 +201,10 @@ def moon_selection(request, form_class, field_name):
         for pk in values or []
         if str(pk).isascii() and str(pk).isdigit() and len(str(pk)) < 20
     ]
+    selected_moons = list(
+        moons.filter(pk__in=ids).exclude(pk__in=[moon.pk for moon in visible_moons])[:10]
+    )
+    attach_moon_structures([*visible_moons, *selected_moons], user=request.user)
     return (
         form,
         not browsing,
@@ -206,9 +212,7 @@ def moon_selection(request, form_class, field_name):
             "filters": filters,
             "moon_choices": choices,
             "selection_name": field_name,
-            "selected_moons": moons.filter(pk__in=ids).exclude(
-                pk__in=[moon.pk for moon in visible_moons]
-            )[:10],
+            "selected_moons": selected_moons,
             "selection_count": len(ids),
         },
     )
@@ -267,10 +271,12 @@ def my_moons(request):
         .select_related("moon", "auction_lot__auction")
         .order_by("-starts_on")
     )
+    rentals = Paginator(rentals, 40).get_page(request.GET.get("page"))
+    attach_moon_structures([rental.moon for rental in rentals], user=request.user)
     return page(
         request,
         "rentals",
-        rentals=Paginator(rentals, 40).get_page(request.GET.get("page")),
+        rentals=rentals,
         title="My moons",
     )
 
@@ -278,10 +284,12 @@ def my_moons(request):
 @access(require_manager)
 def rental_list(request):
     rentals = Rental.objects.select_related("moon", "renter", "auction_lot__auction").all()
+    rentals = Paginator(rentals, 40).get_page(request.GET.get("page"))
+    attach_moon_structures([rental.moon for rental in rentals], user=request.user)
     return page(
         request,
         "rentals",
-        rentals=Paginator(rentals, 40).get_page(request.GET.get("page")),
+        rentals=rentals,
         title="Rental assignments",
     )
 

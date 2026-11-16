@@ -8,7 +8,7 @@ from allianceauth.project_template.project_name.settings.base import *  # noqa: 
 from allianceauth.utils import cache as aa_cache
 
 # Mock infrastructure only in this isolated test/demo process. Application models,
-# permissions, migrations, templates and the moonmining adapter remain real.
+# permissions, migrations, templates, moonmining and structures adapters remain real.
 _redis = Mock()
 _redis.ping.return_value = False
 _redis.info.return_value = {"redis_version": "7.4.0"}
@@ -34,7 +34,7 @@ if os.environ.get("MOON_RENTAL_TEST_MYSQL"):
             "PORT": "3306",
         }
     }
-INSTALLED_APPS = [*INSTALLED_APPS, "eveuniverse", "moonmining", "moon_rental"]  # noqa: F405
+INSTALLED_APPS = [*INSTALLED_APPS, "eveuniverse", "moonmining", "structures", "moon_rental"]  # noqa: F405
 ROOT_URLCONF = "tests.urls"
 WSGI_APPLICATION = None
 CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
