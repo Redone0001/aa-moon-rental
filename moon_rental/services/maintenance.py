@@ -4,7 +4,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from moon_rental.conf import retention_months
-from moon_rental.models import Auction, AuditEvent, Invoice, Moon, Rental
+from moon_rental.models import Auction, AuditEvent, Invoice, Moon, Notification, Rental
 from moon_rental.services.billing import issue_invoices
 from moon_rental.services.rentals import release_expired, settle_auction
 
@@ -45,4 +45,5 @@ def purge_history(*, at=None):
         lots__rental__isnull=False
     ).delete()
     AuditEvent.objects.filter(created_at__lt=cutoff).delete()
+    Notification.objects.filter(Q(delivered_at__lt=cutoff) | Q(skipped_at__lt=cutoff)).delete()
     return count

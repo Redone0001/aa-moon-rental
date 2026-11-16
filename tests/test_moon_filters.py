@@ -250,7 +250,9 @@ def test_auction_filters_are_scoped_and_bid_return_keeps_filters(
 def test_large_auction_is_paginated(client, auction, pilot):
     moons = [Moon(id=i, name=f"Moon {i:03}", synced_at=timezone.now()) for i in range(100, 150)]
     Moon.objects.bulk_create(moons)
-    AuctionLot.objects.bulk_create([AuctionLot(auction=auction, moon=m) for m in moons])
+    AuctionLot.objects.bulk_create(
+        [AuctionLot(auction=auction, moon=m, starting_price=auction.minimum_bid) for m in moons]
+    )
     client.force_login(pilot)
     url = reverse("moon_rental:auction", args=[auction.pk])
     response = client.get(url)

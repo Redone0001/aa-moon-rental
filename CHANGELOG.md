@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Added scheduled auction openings, public per-moon starting prices, and exact 100m ISK bid arrow/wheel adjustments.
+- Added an admin overview covering concurrent rental periods, expected monthly revenue and collections, a global invoice ledger, and rented/unrented past-auction lists.
+- Added searchable, paginated reuse of available moons and starting prices from previous auctions.
+- Added Django admin webhook configuration, per-auction reminders, and optional Discord Multiverse DMs for outbids, issued invoices and partial/full wallet payments. Notifications use a transactional retry queue.
+- Added migration 0006, regression coverage and verified screenshots in Darkly, Flatly and mobile layouts.
+
+## Unreleased
+
 - Show current structure types and names from optional aa-structures data in the moon catalogue, details, selectors and rental assignments, matching moon IDs and respecting Structures visibility permissions.
 - Copy fixed 30-day uncompressed ore quantities from auction cards, with a gross value estimate using snapshotted Moon Mining volume and pricing.
 - Add a separate day-first rent start date above the bidding deadline; award scheduled rentals at close and start the lease term and billing on the advertised start. Preserve legacy auction starts on upgrade.

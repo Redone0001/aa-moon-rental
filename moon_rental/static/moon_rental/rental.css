@@ -25,3 +25,8 @@
   .mr-app .nav-link { white-space: nowrap; }
   .mr-reference { font-size: .85rem; }
 }
+input[data-bid-step] { appearance: textfield; -moz-appearance: textfield; }
+input[data-bid-step]::-webkit-inner-spin-button,
+input[data-bid-step]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.mr-bid-arrows { display: flex; flex-direction: column; }
+.mr-bid-arrows .btn { padding: 0 .6rem; border-radius: 0; font-size: .65rem; flex: 1; line-height: 1; }

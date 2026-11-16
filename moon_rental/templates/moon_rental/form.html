@@ -3,6 +3,15 @@
 <div class="{% if selection_name %}mr-selection-form{% else %}mr-form{% endif %} mx-auto">
   <h2 class="h3">{{ title }}</h2><p class="text-body-secondary mb-4">{{ help_text }}</p>
   <form method="post">{% csrf_token %}{% bootstrap_form_errors form %}
+    {% if previous_auctions.paginator %}
+    <div class="card mb-4"><div class="card-body p-4">
+      <h3 class="h5">Reuse moons from a previous auction</h3>
+      <p class="small text-body-secondary">Newest first. Add available moons and their starting prices to your selection; rented and reserved moons are skipped.</p>
+      <div class="d-flex gap-2 mb-3"><input class="form-control" name="previous_q" value="{{ previous_q }}" aria-label="Search previous auctions" placeholder="Search auction titles"><button class="btn btn-outline-secondary" name="action" value="search_history" formnovalidate>Search</button></div>
+      {% for previous in previous_auctions %}<div class="d-flex align-items-center justify-content-between gap-3 border-top py-3"><div><strong>{{ previous.title }}</strong><div class="small text-body-secondary">{{ previous.created_at|date:"d/m/Y" }} · {{ previous.moon_count }} moons</div></div><button class="btn btn-sm btn-outline-info" name="reuse_auction" value="{{ previous.pk }}" formnovalidate>Add available moons</button></div>{% empty %}<p class="text-body-secondary">No auctions match this search.</p>{% endfor %}
+      <div class="d-flex align-items-center gap-3 mt-2"><span class="small text-body-secondary">Page {{ previous_auctions.number }} of {{ previous_auctions.paginator.num_pages }}</span>{% if previous_auctions.has_previous %}<button class="btn btn-sm btn-outline-secondary" name="auction_page" value="{{ previous_auctions.previous_page_number }}" formnovalidate>Newer auctions</button>{% endif %}{% if previous_auctions.has_next %}<button class="btn btn-sm btn-outline-secondary" name="auction_page" value="{{ previous_auctions.next_page_number }}" formnovalidate>Older auctions</button>{% endif %}</div>
+    </div></div>
+    {% endif %}
     {% if selection_name %}
       <div class="card mb-4"><div class="card-body p-4">
         <h3 class="h5 mb-3">Find moons</h3>
