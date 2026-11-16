@@ -47,7 +47,7 @@ def test_auction_ore_export_is_hidden_and_available_to_members(client, auction, 
     html = response.content.decode()
     assert 'data-copy="Loparite\t756000"' in html
     assert "Copy 30-day ore" in html and "94,41m ISK" in html
-    assert "ore pricing" in html and "before costs and mining losses" in html
+    assert "Moon mining estimation ore pricing, before cost and refining." in html
     assert "<textarea" not in html
 
 
