@@ -11,6 +11,7 @@ An Alliance Auth module for auctioning surveyed moons, managing leases and match
 - The moon catalogue, individual catalogue details and **Export CSV** are restricted to rental managers and admins. CSV downloads include all moons matching the current search across every page, with moon IDs, names, systems, regions, constellations, rarity, survey composition, exact estimated monthly ISK values, status and UTC sync times. Files use UTF-8 with a BOM for spreadsheet compatibility; formula-like text is escaped.
 - Managers create auctions for multiple available moons, choose an optional scheduled UTC bidding start, a rent start date (`dd/mm/yyyy`) and a UTC bidding deadline (`dd/mm/yyyy hh:mm`), term of 1–120 months, default and individual public starting prices, and monthly (default) or single-payment billing. The rent starts at 00:00 UTC on a date after bidding closes, leaving time for in-game setup.
 - Members see each moon's survey, highest bidder and bid amount. **Copy 30-day ore** copies estimated uncompressed ore units as tab-separated item/quantity rows for appraisal tools and spreadsheets without displaying the ore list. An estimated 30-day gross ISK value appears when all required ore prices are available. New bids must strictly exceed the current highest bid. Bids are binding; there is no withdrawal or early settlement endpoint.
+- Anti-sniping applies to every auction: an accepted bid on any moon with 120 seconds or less remaining adds 120 seconds to the current deadline for the whole auction. The rule also applies during extensions, with no extension limit. Rejected bids and bids at or after the deadline cannot extend it. Settlement and outbid notifications use the extended deadline; the advertised rent start and billing terms remain fixed.
 - Auction bid arrows, keyboard arrows and the mouse wheel adjust the amount by exactly **100 million ISK**, preserving cents and clamping at the moon’s starting price. Exact manually entered bids remain supported and are validated on the server.
 - Every ISK input shows a live compact preview, such as `1,2 b ISK`, while submitting the original exact amount. Previews use `k`, `m`, `b` and `t` for thousands, millions, billions and trillions.
 - Highest and winning bids use the same compact units (for example, `1,2b ISK`), with the full exact amount shown underneath.
@@ -89,7 +90,7 @@ Managers and admins inherit app capabilities; they do not need all three permiss
 
 1. A rental admin connects a payment wallet (the first becomes the default) and syncs Moon Mining.
 2. A manager opens an auction or assigns a free moon. Use **Find moons** to combine region, constellation, rarity and ore filters; ore matches any positive surveyed percentage, and rarity is the moon's overall survey class. Choose moons across pages before submitting the rental terms. A reserved or rented moon cannot be selected again.
-3. Members can inspect scheduled auctions immediately; bids are accepted only from the configured opening time until the deadline. No opening worker is required to enable bidding. The lifecycle task assigns winners on or after the deadline. Winning moons remain reserved as scheduled rentals until the advertised rent start. No-bid moons become available again.
+3. Members can inspect scheduled auctions immediately; bids are accepted only from the configured opening time until the deadline. Each accepted bid in the final 120 seconds adds 120 seconds to the whole auction's current deadline, including during extensions. No opening worker is required to enable bidding. The lifecycle task assigns winners on or after the latest deadline. Winning moons remain reserved as scheduled rentals until the advertised rent start. No-bid moons become available again.
 4. Renters pay the invoice recipient in EVE, copying the reference into the ISK transfer reason. Wallet scans confirm payment.
 
 ## Billing and reconciliation rules
@@ -196,6 +197,8 @@ New administration and auction controls (fictional demo data):
 ![Global invoice ledger](docs/screenshots/admin-invoice-ledger-flatly.png)
 
 [Scheduled auction creation](docs/screenshots/auction-schedule-create-darkly.png) · [100m bid controls](docs/screenshots/auction-bid-controls-flatly.png) · [Mobile administration](docs/screenshots/admin-overview-mobile.png) · [Discord settings](docs/screenshots/discord-configuration-darkly.png)
+
+[Anti-sniping notice (Darkly)](docs/screenshots/auction-anti-sniping-darkly.png) · [Anti-sniping notice (Flatly)](docs/screenshots/auction-anti-sniping-flatly.png)
 
 
 Screenshots are of the running module inside Alliance Auth, using fictional data.
