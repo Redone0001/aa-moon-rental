@@ -266,6 +266,7 @@ class Notification(models.Model):
     )
     auction = models.ForeignKey(Auction, null=True, on_delete=models.CASCADE)
     message = models.TextField()
+    embed = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     delivered_at = models.DateTimeField(null=True)
     skipped_at = models.DateTimeField(null=True)

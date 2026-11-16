@@ -387,6 +387,9 @@ def invoice_list(request):
     )
     if not is_manager(request.user):
         invoices = invoices.filter(rental__renter=request.user)
+    reference = request.GET.get("reference", "").strip()[:25]
+    if reference:
+        invoices = invoices.filter(code__iexact=reference)
     status = request.GET.get("status", "open")
     if status in Invoice.Status.values:
         invoices = invoices.filter(status=status)
@@ -397,6 +400,7 @@ def invoice_list(request):
         "invoices",
         invoices=Paginator(invoices, 30).get_page(request.GET.get("page")),
         status=status,
+        reference=reference,
     )
 
 

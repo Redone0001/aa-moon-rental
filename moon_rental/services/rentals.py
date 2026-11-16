@@ -153,6 +153,7 @@ def place_bid(*, actor, lot_id, amount):
         raise ValidationError("Your bid must meet the minimum and exceed the highest bid.")
     bid = Bid.objects.create(lot=lot, bidder=actor, amount=amount)
     if top and top.bidder_id != actor.pk:
+        from moon_rental.services.discord_messages import outbid_embed
         from moon_rental.services.notifications import queue_dm
 
         queue_dm(
@@ -160,6 +161,7 @@ def place_bid(*, actor, lot_id, amount):
             user_id=top.bidder_id,
             message=f"You have been outbid on {lot.moon.name} in {auction.title}. "
             f"New highest bid: {amount:,.2f} ISK. Bidding closes {auction.ends_at:%d/%m/%Y %H:%M} UTC.",
+            embed=outbid_embed(auction, lot, previous_bid=top, new_bid=bid),
         )
     audit(actor, "bid.place", bid)
     return bid

@@ -205,6 +205,7 @@ def record_payment(account_id, entry):
         invoice.closed_at = timezone.now()
         invoice.save(update_fields=["status", "paid_at", "closed_at"])
     if created:
+        from moon_rental.services.discord_messages import invoice_embed
         from moon_rental.services.notifications import queue_dm
 
         state = "fully paid" if invoice.status == Invoice.Status.PAID else "partially paid"
@@ -214,6 +215,7 @@ def record_payment(account_id, entry):
             message=f"Invoice {invoice.code} for {invoice.rental.moon.name} is {state}. "
             f"Received {amount:,.2f} ISK; total paid {invoice.paid_amount:,.2f} ISK; "
             f"remaining {invoice.outstanding:,.2f} ISK.",
+            embed=invoice_embed(invoice, receipt=receipt),
         )
     return created
 

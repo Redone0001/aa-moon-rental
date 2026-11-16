@@ -12,6 +12,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from moon_rental.models import Auction, Configuration, Notification
+from moon_rental.services.discord_messages import reminder_embed
 
 logger = logging.getLogger(__name__)
 WEBHOOK = re.compile(r"https://discord\.com/api(?:/v\d+)?/webhooks/\d+/[\w-]+\Z")
@@ -25,7 +26,7 @@ def validate_webhook(value):
         )
 
 
-def queue_dm(*, key, user_id, message):
+def queue_dm(*, key, user_id, message, embed=None):
     config = Configuration.objects.filter(pk=1).first()
     if (
         apps.is_installed("aadiscordmultiverse")
@@ -34,7 +35,7 @@ def queue_dm(*, key, user_id, message):
         and config.discord_guild_id
     ):
         Notification.objects.get_or_create(
-            key=key, defaults={"user_id": user_id, "message": message}
+            key=key, defaults={"user_id": user_id, "message": message, "embed": embed or {}}
         )
 
 
@@ -66,6 +67,7 @@ def queue_reminders(*, at=None):
                 key=key,
                 defaults={
                     "auction": auction,
+                    "embed": reminder_embed(auction, hour, at=at),
                     "message": f"{auction.title}: {hour}h auction reminder · "
                     f"bidding closes {auction.ends_at:%d/%m/%Y %H:%M} UTC. "
                     f"{getattr(settings, 'SITE_URL', '').rstrip('/')}/moon-rental/auctions/{auction.pk}/",
@@ -95,7 +97,12 @@ def discord_post(url, *, payload, headers=None):
 
 
 def deliver(notification, config):
-    payload = {"content": notification.message[:2000], "allowed_mentions": {"parse": []}}
+    payload = {"allowed_mentions": {"parse": []}}
+    if notification.embed:
+        payload["embeds"] = [notification.embed]
+    else:
+        # Pending notifications from before the embed migration remain deliverable.
+        payload["content"] = notification.message[:2000]
     if notification.user_id:
         if not (
             apps.is_installed("aadiscordmultiverse")

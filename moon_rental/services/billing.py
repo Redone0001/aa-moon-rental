@@ -44,6 +44,7 @@ def issue_invoices(rental_id, *, at=None):
             recipient=wallet,
             recipient_name=wallet.name,
         )
+        from moon_rental.services.discord_messages import invoice_embed
         from moon_rental.services.notifications import queue_dm
 
         queue_dm(
@@ -51,6 +52,7 @@ def issue_invoices(rental_id, *, at=None):
             user_id=rental.renter_id,
             message=f"Invoice received for {rental.moon.name}: {invoice.amount:,.2f} ISK "
             f"({period:%B %Y}). Send to {wallet.name} with payment reason {invoice.code}.",
+            embed=invoice_embed(invoice),
         )
     rental.billed_through = max(missing)
     rental.save(update_fields=["billed_through"])

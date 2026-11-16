@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Send rich Discord embeds with exact copyable payment fields, complete invoice/payment context, auction details and relative timestamps. Add permission-scoped invoice links, embed snapshots (migration 0007), regression coverage and local light/dark previews.
+
 - Added scheduled auction openings, public per-moon starting prices, and exact 100m ISK bid arrow/wheel adjustments.
 - Added an admin overview covering concurrent rental periods, expected monthly revenue and collections, a global invoice ledger, and rented/unrented past-auction lists.
 - Added searchable, paginated reuse of available moons and starting prices from previous auctions.

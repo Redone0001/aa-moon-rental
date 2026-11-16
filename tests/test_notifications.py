@@ -143,7 +143,13 @@ def test_multiverse_account_and_bot_token_are_used(config, pilot):
     settings = ModuleType("aadiscordmultiverse.app_settings")
     settings.DISCORD_BOT_TOKEN = "test-only"
     at = timezone.now()
-    Notification.objects.create(key="dm", user=pilot, message="Outbid", next_attempt_at=at)
+    Notification.objects.create(
+        key="dm",
+        user=pilot,
+        message="Outbid",
+        embed={"title": "You have been outbid"},
+        next_attempt_at=at,
+    )
     response = Mock(status_code=200)
     response.json.return_value = {"id": "1234"}
     with (
@@ -159,6 +165,7 @@ def test_multiverse_account_and_bot_token_are_used(config, pilot):
         assert post.call_args_list[0].kwargs["json"] == {"recipient_id": "999"}
         assert post.call_args_list[1].args[0].endswith("/channels/1234/messages")
         assert post.call_args.kwargs["headers"] == {"Authorization": "Bot test-only"}
+        assert post.call_args.kwargs["json"]["embeds"] == [{"title": "You have been outbid"}]
         account_model.objects.filter.assert_called_once_with(
             user_id=pilot.pk, user__is_active=True, guild_id=123
         )
