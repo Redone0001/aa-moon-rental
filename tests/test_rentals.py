@@ -29,7 +29,9 @@ def test_large_bid_retains_exact_cents_through_award(auction, pilot):
     bid = place_bid(actor=pilot, lot_id=auction.lots.get().pk, amount=str(amount))
     bid.refresh_from_db()
     assert bid.amount == amount
-    settle_auction(auction.pk, at=auction.ends_at)
+    settle_auction(
+        auction.pk, at=datetime.combine(auction.starts_on, datetime.min.time(), tzinfo=tz.utc)
+    )
     rental = Rental.objects.get(auction_lot=bid.lot)
     assert rental.price == amount
     assert rental.invoices.get().amount == amount
@@ -86,6 +88,7 @@ def test_cannot_double_reserve_or_assign(auction, manager, pilot, moon):
             title="Duplicate",
             moon_ids=[moon.pk],
             ends_at=auction.ends_at,
+            starts_on=auction.starts_on,
             duration_months=1,
         )
     assert AuctionLot.objects.count() == 1
@@ -117,6 +120,7 @@ def test_basic_user_cannot_manage(pilot, wallet, moon):
             title="No",
             moon_ids=[moon.pk],
             ends_at=timezone.now() + timedelta(days=1),
+            starts_on=(timezone.now() + timedelta(days=2)).date(),
             duration_months=2,
         )
 
@@ -158,6 +162,7 @@ def test_bad_terms(manager, wallet, moon, duration, mode):
             title="Bad",
             moon_ids=[moon.pk],
             ends_at=timezone.now() + timedelta(days=1),
+            starts_on=(timezone.now() + timedelta(days=2)).date(),
             duration_months=duration,
             billing_mode=mode,
         )

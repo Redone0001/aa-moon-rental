@@ -8,8 +8,8 @@ An Alliance Auth module for auctioning surveyed moons, managing leases and match
 
 - Admin-only synchronization of moon names, systems, regions, constellations, rarity, ore distribution and value estimates from `moonmining`. Source data is never modified. Removed moons cannot be offered again; existing leases remain accessible.
 - The moon catalogue, individual catalogue details and **Export CSV** are restricted to rental managers and admins. CSV downloads include all moons matching the current search across every page, with moon IDs, names, systems, regions, constellations, rarity, survey composition, exact estimated monthly ISK values, status and UTC sync times. Files use UTF-8 with a BOM for spreadsheet compatibility; formula-like text is escaped.
-- Managers open auctions for multiple available moons, choose a UTC deadline, term of 1–120 months, minimum bid and monthly (default) or single-payment billing.
-- Members see each moon's survey, highest bidder and bid amount. New bids must strictly exceed the current highest bid. Bids are binding; there is no withdrawal or early settlement endpoint.
+- Managers open auctions for multiple available moons, choose a rent start date (`dd/mm/yyyy`) and a UTC bidding deadline (`dd/mm/yyyy hh:mm`), term of 1–120 months, minimum bid and monthly (default) or single-payment billing. The rent starts at 00:00 UTC on a date after bidding closes, leaving time for in-game setup.
+- Members see each moon's survey, highest bidder and bid amount. **Copy 30-day ore** copies estimated uncompressed ore units as tab-separated item/quantity rows for appraisal tools and spreadsheets without displaying the ore list. An estimated 30-day gross ISK value appears when all required ore prices are available. New bids must strictly exceed the current highest bid. Bids are binding; there is no withdrawal or early settlement endpoint.
 - Every ISK input shows a live compact preview, such as `1,2 b ISK`, while submitting the original exact amount. Previews use `k`, `m`, `b` and `t` for thousands, millions, billions and trillions.
 - Highest and winning bids use the same compact units (for example, `1,2b ISK`), with the full exact amount shown underneath.
 - Each moon is independently awarded at the deadline. Settlement is automatic and repeatable. An admin can end/correct an assignment; managers cannot alter existing leases, including auction awards.
@@ -55,7 +55,7 @@ CELERYBEAT_SCHEDULE["moon-rental-retention"] = {
 
 Run `python manage.py migrate` and `python manage.py collectstatic --noinput`, then restart Auth's web, Celery worker and beat services. The app registers its own menu and URLs at `/moon-rental/`.
 
-Upgrades also require migration and static collection. Migration `0004` indexes ores from existing survey snapshots and backfills constellations from locally stored Eve Universe moons without ESI calls. If a constellation is missing locally, the next admin **Sync Moon Mining** fills it from the source survey.
+Upgrades also require migration and static collection. Migration `0005` preserves existing auctions' original deadline-based rent starts. After upgrading, an admin must run **Sync Moon Mining** to populate the new 30-day estimates; the copy button stays disabled until sufficient source data is available. Migration `0004` indexes ores from existing survey snapshots and backfills constellations from locally stored Eve Universe moons without ESI calls. If a constellation is missing locally, the next admin **Sync Moon Mining** fills it from the source survey.
 
 Add these scopes to the **existing Alliance Auth EVE developer application**, then use **Wallet accounts → Connect character / Connect corporation** as a rental admin:
 
@@ -80,21 +80,34 @@ Managers and admins inherit app capabilities; they do not need all three permiss
 
 1. A rental admin connects a payment wallet (the first becomes the default) and syncs Moon Mining.
 2. A manager opens an auction or assigns a free moon. Use **Find moons** to combine region, constellation, rarity and ore filters; ore matches any positive surveyed percentage, and rarity is the moon's overall survey class. Choose moons across pages before submitting the rental terms. A reserved or rented moon cannot be selected again.
-3. Members bid; the lifecycle task assigns winners on or after the deadline. No-bid moons become available again.
+3. Members bid; the lifecycle task assigns winners on or after the deadline. Winning moons remain reserved as scheduled rentals until the advertised rent start. No-bid moons become available again.
 4. Renters pay the invoice recipient in EVE, copying the reference into the ISK transfer reason. Wallet scans confirm payment.
 
 ## Billing and reconciliation rules
 
 - All business dates are **UTC**. A term ends on an exclusive end date calculated using calendar months (31 January + one month = 28/29 February).
 - Monthly invoices are due on each first of the month during the lease. Mid-month awards have their first invoice on the following first, with no proration or initial partial-month charge. An award on the first is invoiced immediately. A monthly term ending mid-month still incurs that month's full invoice if active on the first.
-- One-time bids/prices cover the full term and are invoiced immediately at award/assignment.
-- Delayed workers backfill missed invoice periods and use the original auction deadline as the lease start. Repeated runs cannot duplicate awards or invoices. A billing cursor prevents paid invoices removed by retention from being recreated.
+- One-time bids/prices cover the full term and are invoiced on the rent start date (or immediately for direct assignments). Auctions can be awarded before rent starts; no invoices are issued during the setup window.
+- Delayed workers backfill missed invoice periods and use the advertised rent start as the lease start. Existing auctions migrated from before the separate start date retain their original deadline date. Repeated runs cannot duplicate awards or invoices. A billing cursor prevents paid invoices removed by retention from being recreated.
 - Invoice recipients are snapshots of the default at issuance. Changing the default affects future invoices. A matching payment to any enabled configured wallet is accepted.
 - Only positive incoming `player_donation` entries with the configured account as recipient are eligible. The reason must contain exactly one complete invoice reference (case insensitive). Entries before invoice creation, outgoing transfers, malformed amounts/dates, unrelated reasons and multiple references are ignored. Third parties may pay a renter's invoice.
 - Multiple payments can settle an invoice. Overpayment settles that invoice and is recorded in its receipt; it is not automatically credited to a future invoice or refunded. No wallet history is stored for unmatched transfers.
 - References must be included correctly in the transfer reason. Incorrect-reference payments need an in-game correction; there is deliberately no unaudited “mark paid” endpoint. Admins can void an open invoice with an explanation. Voiding does not refund payments.
 - Ending/correcting a lease stops future billing. Existing invoices keep their original renter, amount and recipient; use the separate admin-only void action if appropriate. Reassignment creates a new lease and audit trail.
 - ESI journals have a limited upstream history. Keep scans running and resolve failed scans promptly; transfers that disappear from ESI before a successful scan cannot be recovered by this module. Requests have timeouts, all journal pages are scanned, and one wallet failure does not stop scans of other accounts.
+
+## Fixed 30-day ore estimates
+
+Estimates use Moon Mining's configured `MOONMINING_VOLUME_PER_DAY` rather than hardcoding a universal in-game extraction rate. For each positive surveyed ore share:
+
+```text
+ore units = floor(daily volume × 30 × survey fraction / ore unit volume)
+gross ISK = sum(whole ore units × Moon Mining current price per unit)
+```
+
+The sync snapshots these quantities, the daily volume, pricing mode, reprocessing yield and gross value together. Each ore uses its locally stored Eve Universe unit volume. Quantities remain uncompressed and survey fractions are never normalized: a 35% survey still represents 35% of the configured full pull. Zero-share ores are excluded. Missing unit volume disables the entire export; missing or zero prices leave the ISK estimate unavailable while keeping the quantities copyable. Values and quantities refresh on the next admin sync.
+
+This calculation uses exactly 30 days; Moon Mining's existing monthly value usually uses `MOONMINING_DAYS_PER_MONTH` (default 30.4). Its documented daily-volume default is 960,400 m³, which yields 28,812,000 m³ over 30 days before survey shares. Configure Moon Mining's daily volume to match your operation. Pricing follows Moon Mining's ore or reprocessed-material pricing, including the configured reprocessing yield. It uses average market prices, not a live Jita quote. The gross estimate excludes rent, fuel, fees, hauling, mining losses and any unmodeled extraction bonuses. See [Moon Mining's settings and pricing documentation](https://apps.allianceauth.org/apps/detail/aa-moonmining).
 
 ## Data retention
 
@@ -129,6 +142,7 @@ python manage.py runserver 127.0.0.1:8000 --noreload
 # In another terminal with the same venv:
 python scripts/screenshots.py
 python scripts/screenshot_filters.py
+python scripts/screenshot_estimates.py
 ```
 
 Demo data uses fictional renters and survey values. Demo users have unusable passwords. The screenshot script creates a local Django session, exercises bidding and clipboard copying, and captures the real pages at desktop/mobile sizes and under Darkly/Flatly. **Never use test settings or seed scripts against a production database.**
@@ -141,6 +155,9 @@ Screenshots are of the running module inside Alliance Auth, using fictional data
 ![Rental invoices](docs/screenshots/invoices-darkly.png)
 
 ![Filtered moon selection in Alliance Auth Darkly](docs/screenshots/moon-filters-auction-darkly.png)
+
+![30-day ore estimates in Alliance Auth Darkly](docs/screenshots/auction-estimates-darkly.png)
+![Separate rent start and bidding deadline in Alliance Auth Flatly](docs/screenshots/auction-start-flatly.png)
 
 See [all screenshots](docs/screenshots/) for overview, catalogue, My moons, wallet settings, filtered auction/assignment selectors, Flatly and mobile views.
 

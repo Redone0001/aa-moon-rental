@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from moon_rental.models import Moon, SurveyOre
 from moon_rental.permissions import require_admin
+from moon_rental.services.extraction import estimate_pull
 from moon_rental.services.rentals import audit
 
 
@@ -16,7 +17,7 @@ def sync_moons(*, actor):
     at = timezone.now()
     source = MiningMoon.objects.select_related(
         "eve_moon__eve_planet__eve_solar_system__eve_constellation__eve_region"
-    ).prefetch_related("products__ore_type")
+    ).prefetch_related("products__ore_type__extras")
     seen = []
     for moon in source:
         snapshot, _ = Moon.objects.update_or_create(
@@ -38,6 +39,7 @@ def sync_moons(*, actor):
                 "estimated_value": Decimal(str(moon.value)).quantize(Decimal("0.01"))
                 if moon.value is not None
                 else None,
+                "pull_30d": estimate_pull(moon.products.all()),
                 "available": True,
                 "synced_at": at,
             },

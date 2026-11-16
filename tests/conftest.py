@@ -74,6 +74,7 @@ def auction(manager, moon, wallet):
         title="Winter moon programme",
         moon_ids=[moon.pk],
         ends_at=timezone.now() + timedelta(days=2),
+        starts_on=(timezone.now() + timedelta(days=3)).date(),
         duration_months=3,
         minimum_bid="100",
     )

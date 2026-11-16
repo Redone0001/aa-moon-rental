@@ -1,3 +1,4 @@
+from datetime import date, datetime
 from datetime import timezone as dt_timezone
 from decimal import Decimal, InvalidOperation
 
@@ -42,6 +43,15 @@ def utc_day(at):
     return at.astimezone(dt_timezone.utc).date()
 
 
+def validate_rent_start(starts_on, ends_at):
+    if (
+        not isinstance(starts_on, date)
+        or isinstance(starts_on, datetime)
+        or starts_on <= utc_day(ends_at)
+    ):
+        raise ValidationError("Start rent must be a date after the bidding deadline (UTC).")
+
+
 def release_expired(moon, at):
     if moon.current_rental_id and moon.current_rental.ends_on <= utc_day(at):
         rental = moon.current_rental
@@ -67,6 +77,7 @@ def open_auction(
     title,
     moon_ids,
     ends_at,
+    starts_on,
     duration_months,
     billing_mode=BillingMode.MONTHLY,
     minimum_bid="1.00",
@@ -79,6 +90,7 @@ def open_auction(
         raise ValidationError("Enter an auction title of up to 160 characters.")
     if timezone.is_naive(ends_at) or ends_at <= now:
         raise ValidationError("The bidding deadline must be in the future, with a timezone.")
+    validate_rent_start(starts_on, ends_at)
     ids = set(moon_ids)
     moons = list(Moon.objects.select_for_update().filter(pk__in=ids).order_by("pk"))
     if not moons or len(moons) != len(ids):
@@ -90,6 +102,7 @@ def open_auction(
     auction = Auction.objects.create(
         title=title.strip(),
         ends_at=ends_at,
+        starts_on=starts_on,
         duration_months=duration_months,
         billing_mode=billing_mode,
         minimum_bid=isk(minimum_bid),
@@ -136,7 +149,7 @@ def settle_auction(auction_id, *, at=None):
             raise ValidationError("Moon reservation is inconsistent; admin intervention required.")
         bid = lot.highest_bid
         if bid:
-            starts = utc_day(auction.ends_at)
+            starts = auction.starts_on
             rental = Rental.objects.create(
                 moon=moon,
                 renter=bid.bidder,

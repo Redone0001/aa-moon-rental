@@ -16,7 +16,7 @@ from eveuniverse.models import (
     EveSolarSystem,
     EveType,
 )
-from moonmining.models import EveOreType, MoonProduct
+from moonmining.models import EveOreType, EveOreTypeExtras, MoonProduct
 from moonmining.models import Moon as MiningMoon
 
 from moon_rental.models import Moon, SurveyOre
@@ -33,6 +33,7 @@ def test_real_moonmining_adapter(admin_user, moon):
     ore = EveOreType.objects.create(
         id=45506, name="Loparite", eve_group=group, published=True, volume=10
     )
+    EveOreTypeExtras.objects.create(ore_type=ore, current_price=2.5)
     planet_type = EveType.objects.create(id=11, name="Planet", eve_group=group, published=True)
     region = EveRegion.objects.create(id=10000003, name="Vale of the Silent")
     constellation = EveConstellation.objects.create(id=20000001, name="Test", eve_region=region)
@@ -52,6 +53,8 @@ def test_real_moonmining_adapter(admin_user, moon):
     assert list(copy.survey_ores.values_list("type_id", "name")) == [(45506, "Loparite")]
     assert copy.composition == [{"type_id": 45506, "name": "Loparite", "percent": 35.0}]
     assert str(copy.estimated_value) == "123456.79"
+    assert copy.pull_30d["ores"] == [{"name": "Loparite", "units": 1008420}]
+    assert copy.pull_30d["value"] == "2521050.00"
     # Existing installations can recover the same filters without a fresh ESI sync.
     SurveyOre.objects.all().delete()
     Moon.objects.filter(pk=copy.pk).update(constellation="")
@@ -69,6 +72,8 @@ def test_real_moonmining_adapter(admin_user, moon):
     source.products.all().update(amount=0)
     sync_moons(actor=admin_user)
     assert not copy.survey_ores.exists()
+    copy.refresh_from_db()
+    assert copy.pull_30d == {}
 
 
 def test_sync_restricted(manager):

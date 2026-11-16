@@ -53,6 +53,7 @@ def capture():
         title="Regional moon programme",
         moon_ids=[moon.pk for moon in moons[:30]],
         ends_at=timezone.now() + timedelta(days=3),
+        starts_on=(timezone.now() + timedelta(days=5)).date(),
         duration_months=3,
         minimum_bid="100000000",
     )
@@ -79,7 +80,8 @@ def capture():
 
                 navigate("/moon-rental/auctions/new/")
                 page.locator('[name="title"]').fill("Regional moon programme")
-                page.locator('[name="ends_at"]').fill("2030-01-01T18:00")
+                page.locator('[name="starts_on"]').fill("03/01/2030")
+                page.locator('[name="ends_at"]').fill("01/01/2030 18:00")
                 page.locator('[name="duration_months"]').fill("6")
                 page.locator('[name="minimum_bid"]').fill("1200000000.12")
                 page.locator('[name="billing_mode"]').select_option("once")

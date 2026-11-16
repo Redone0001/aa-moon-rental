@@ -79,7 +79,8 @@ def test_manager_filtering_preserves_choices_and_terms(client, manager, surveys,
         "price": "1234567890.12",
         "minimum_bid": "987654321.09",
         "title": "Keep this title",
-        "ends_at": "2030-01-01T12:30",
+        "ends_at": "01/01/2030 12:30",
+        "starts_on": "03/01/2030",
     }
     response = client.post(reverse(f"moon_rental:{view}"), data)
     assert response.status_code == 200
@@ -91,7 +92,8 @@ def test_manager_filtering_preserves_choices_and_terms(client, manager, surveys,
     assert not Auction.objects.exists() and not Rental.objects.exists()
     if field == "moons":
         assert response.context["form"]["minimum_bid"].value() == "987654321.09"
-        assert response.context["form"]["ends_at"].value() == "2030-01-01T12:30"
+        assert response.context["form"]["ends_at"].value() == "01/01/2030 12:30"
+        assert response.context["form"]["starts_on"].value() == "03/01/2030"
     else:
         assert response.context["form"]["price"].value() == "1234567890.12"
 
@@ -151,6 +153,7 @@ def test_hidden_selection_is_validated_against_available_moons(client, manager, 
         "moons": str(other.pk),
         "title": "Filtered auction",
         "ends_at": (timezone.now() + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M"),
+        "starts_on": (timezone.now() + timedelta(days=3)).strftime("%d/%m/%Y"),
         "duration_months": "3",
         "billing_mode": "monthly",
         "minimum_bid": "1234567890.12",
@@ -197,6 +200,7 @@ def test_unavailable_reserved_and_rented_moons_are_not_offered(
         title="Reserved",
         moon_ids=[other.pk],
         ends_at=timezone.now() + timedelta(days=1),
+        starts_on=(timezone.now() + timedelta(days=2)).date(),
         duration_months=1,
         minimum_bid="1",
     )
@@ -223,6 +227,7 @@ def test_auction_filters_are_scoped_and_bid_return_keeps_filters(
         title="Two regions",
         moon_ids=[moon.pk, other.pk],
         ends_at=timezone.now() + timedelta(days=1),
+        starts_on=(timezone.now() + timedelta(days=2)).date(),
         duration_months=1,
         minimum_bid="1",
     )
