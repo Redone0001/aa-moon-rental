@@ -7,7 +7,7 @@ An Alliance Auth module for auctioning surveyed moons, managing leases and match
 ## Features
 
 - Admin-only synchronization of moon names, systems, regions, constellations, rarity, ore distribution and value estimates from `moonmining`. Source data is never modified. Removed moons cannot be offered again; existing leases remain accessible.
-- **Export CSV** on the moon catalogue downloads all moons matching the current search across every page. Members, managers and admins with catalogue access can export moon IDs, names, systems, regions, constellations, rarity, survey composition, exact estimated monthly ISK values, status and UTC sync times. Files use UTF-8 with a BOM for spreadsheet compatibility; formula-like text is escaped.
+- The moon catalogue, individual catalogue details and **Export CSV** are restricted to rental managers and admins. CSV downloads include all moons matching the current search across every page, with moon IDs, names, systems, regions, constellations, rarity, survey composition, exact estimated monthly ISK values, status and UTC sync times. Files use UTF-8 with a BOM for spreadsheet compatibility; formula-like text is escaped.
 - Managers open auctions for multiple available moons, choose a UTC deadline, term of 1–120 months, minimum bid and monthly (default) or single-payment billing.
 - Members see each moon's survey, highest bidder and bid amount. New bids must strictly exceed the current highest bid. Bids are binding; there is no withdrawal or early settlement endpoint.
 - Every ISK input shows a live compact preview, such as `1,2 b ISK`, while submitting the original exact amount. Previews use `k`, `m`, `b` and `t` for thousands, millions, billions and trillions.
@@ -72,8 +72,8 @@ Assign permissions to AA groups/states in Django admin:
 
 | Permission | Capabilities |
 | --- | --- |
-| `moon_rental.basic_access` | Browse moons, bid, see personal rentals and invoices |
-| `moon_rental.manage_rentals` | Member capabilities plus auctions, direct assignments and all invoices |
+| `moon_rental.basic_access` | View auction surveys, bid, see personal rentals and invoices |
+| `moon_rental.manage_rentals` | Member capabilities plus moon catalogue, moon details, CSV export, auctions, direct assignments and all invoices |
 | `moon_rental.administer_rentals` | Manager capabilities plus sync, wallets, assignment corrections and invoice voiding |
 
 Managers and admins inherit app capabilities; they do not need all three permissions. Merely being Django `is_staff` does not grant rental administration. Superusers have all capabilities. The app's Django admin model screens are read-only so assignments, money records and audit trails cannot be bypassed with ordinary model editing.

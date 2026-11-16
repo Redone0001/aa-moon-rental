@@ -10,7 +10,7 @@
     </div>
     <nav class="nav nav-tabs mb-4" aria-label="Moon Rental">
         <a class="nav-link {% if request.resolver_match.url_name == 'index' %}active{% endif %}" href="{% url 'moon_rental:index' %}">Overview</a>
-        <a class="nav-link {% if request.resolver_match.url_name == 'moons' or request.resolver_match.url_name == 'moon' %}active{% endif %}" href="{% url 'moon_rental:moons' %}">Moon catalogue</a>
+        {% if rental_manager %}<a class="nav-link {% if request.resolver_match.url_name == 'moons' or request.resolver_match.url_name == 'moon' %}active{% endif %}" href="{% url 'moon_rental:moons' %}">Moon catalogue</a>{% endif %}
         <a class="nav-link {% if request.resolver_match.url_name == 'my_moons' %}active{% endif %}" href="{% url 'moon_rental:my_moons' %}">My moons</a>
         <a class="nav-link {% if request.resolver_match.url_name == 'invoices' %}active{% endif %}" href="{% url 'moon_rental:invoices' %}">Invoices</a>
         {% if rental_manager %}<a class="nav-link {% if request.resolver_match.url_name == 'rentals' %}active{% endif %}" href="{% url 'moon_rental:rentals' %}">Assignments</a>{% endif %}

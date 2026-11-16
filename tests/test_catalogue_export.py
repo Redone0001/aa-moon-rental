@@ -21,7 +21,7 @@ def read_export(response):
     return list(csv.DictReader(io.StringIO(content.decode("utf-8-sig"))))
 
 
-@pytest.mark.parametrize("user_fixture", ["pilot", "manager", "admin_user"])
+@pytest.mark.parametrize("user_fixture", ["manager", "admin_user"])
 def test_catalogue_users_can_download_csv(client, request, moon, user_fixture):
     client.force_login(request.getfixturevalue(user_fixture))
     response = client.get(reverse("moon_rental:moon_export"))
@@ -37,12 +37,12 @@ def test_export_requires_catalogue_access(client, moon):
     assert client.get(url).status_code == 403
 
 
-def test_csv_preserves_unicode_quotes_precision_and_utc(client, pilot, moon):
+def test_csv_preserves_unicode_quotes_precision_and_utc(client, manager, moon):
     moon.name = 'Étoile, "Alpha"\nIV - 12'
     moon.estimated_value = Decimal("123456789012.34")
     moon.composition = [{"type_id": 45506, "name": 'Ore, "rare"', "percent": 35.1234}]
     moon.save()
-    client.force_login(pilot)
+    client.force_login(manager)
     with override("fr"), timezone.override("Europe/Brussels"):
         rows = read_export(client.get(reverse("moon_rental:moon_export")))
     assert rows == [
@@ -61,11 +61,11 @@ def test_csv_preserves_unicode_quotes_precision_and_utc(client, pilot, moon):
     ]
 
 
-def test_export_includes_every_page_and_unknown_survey_values(client, pilot, moon):
+def test_export_includes_every_page_and_unknown_survey_values(client, manager, moon):
     Moon.objects.bulk_create(
         [Moon(id=i, name=f"Extra {i:02}", synced_at=timezone.now()) for i in range(100, 145)]
     )
-    client.force_login(pilot)
+    client.force_login(manager)
     page = client.get(reverse("moon_rental:moons"))
     assert len(page.context["moons"]) == 40
     rows = read_export(client.get(reverse("moon_rental:moon_export"), {"page": "2"}))
@@ -78,17 +78,17 @@ def test_export_includes_every_page_and_unknown_survey_values(client, pilot, moo
 
 
 @pytest.mark.parametrize("query", ["J-A5QD IV", "j-a5qd", "  Vale of the Silent  ", "no match"])
-def test_export_matches_catalogue_search(client, pilot, moon, query):
+def test_export_matches_catalogue_search(client, manager, moon, query):
     Moon.objects.create(id=2, name="Other moon", region="Tribute", synced_at=timezone.now())
-    client.force_login(pilot)
+    client.force_login(manager)
     data = {"q": query}
     page = client.get(reverse("moon_rental:moons"), data)
     rows = read_export(client.get(reverse("moon_rental:moon_export"), data))
     assert [row["Moon ID"] for row in rows] == [str(m.pk) for m in page.context["moons"]]
 
 
-def test_empty_export_still_contains_column_headers(client, pilot):
-    client.force_login(pilot)
+def test_empty_export_still_contains_column_headers(client, manager):
+    client.force_login(manager)
     response = client.get(reverse("moon_rental:moon_export"))
     content = b"".join(response.streaming_content).decode("utf-8-sig")
     rows = list(csv.reader(io.StringIO(content)))
@@ -104,7 +104,7 @@ def test_export_status_matches_catalogue(client, pilot, manager, wallet, auction
     Moon.objects.create(id=4, name="Free moon", synced_at=timezone.now())
     # Existing leases and auction reservations take precedence over source availability.
     Moon.objects.filter(pk__in=[moon.pk, rented.pk]).update(available=False)
-    client.force_login(pilot)
+    client.force_login(manager)
     rows = read_export(client.get(reverse("moon_rental:moon_export")))
     assert {row["Moon ID"]: row["Status"] for row in rows} == {
         str(moon.pk): "In auction",
@@ -117,22 +117,22 @@ def test_export_status_matches_catalogue(client, pilot, manager, wallet, auction
 @pytest.mark.parametrize(
     "text", ["=1+1", "+1+1", "-1+1", "@SUM(1)", "  =1", "\tname", "\rname", "\nname"]
 )
-def test_formula_like_text_is_escaped(client, pilot, moon, text):
+def test_formula_like_text_is_escaped(client, manager, moon, text):
     moon.name = text
     moon.solar_system = text
     moon.region = text
     moon.constellation = text
     moon.composition = [{"type_id": 45506, "name": text, "percent": 35}]
     moon.save()
-    client.force_login(pilot)
+    client.force_login(manager)
     row = read_export(client.get(reverse("moon_rental:moon_export")))[0]
     for column in ("Moon", "Solar system", "Region", "Constellation"):
         assert row[column] == "'" + text
     assert row["Survey composition"] == f"'{text}: 35%"
 
 
-def test_export_link_preserves_search_without_page(client, pilot, moon):
-    client.force_login(pilot)
+def test_export_link_preserves_search_without_page(client, manager, moon):
+    client.force_login(manager)
     response = client.get(reverse("moon_rental:moons"), {"q": "J-A5QD & +", "page": "2"})
     url = reverse("moon_rental:moon_export") + "?q=J-A5QD%20%26%20%2B"
     assert f'href="{url}"'.encode() in response.content
