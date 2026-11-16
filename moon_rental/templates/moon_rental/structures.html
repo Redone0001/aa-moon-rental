@@ -1,0 +1,5 @@
+{% if moon.structure_info_available %}
+  {% for structure in moon.visible_structures %}
+    <span class="d-block">{{ structure.type_name }} "{{ structure.name }}"</span>
+  {% empty %}<span class="text-body-secondary">No visible structure</span>{% endfor %}
+{% else %}<span class="text-body-secondary" title="Structure information requires access to Structures.">Unavailable</span>{% endif %}
