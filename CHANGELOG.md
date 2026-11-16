@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Extend the whole auction deadline by 120 seconds for each accepted bid in its final 120 seconds, including repeated extensions. Keep settlement and outbid notifications aligned with the extended deadline, audit extensions and explain the rule to bidders.
+
 - Issue monthly invoices on the rent start date and each monthly anniversary for direct assignments and auction awards, using the last day of shorter months without shifting later anniversaries. Align revenue forecasts and preserve existing billed months.
 
 - Send rich Discord embeds with exact copyable payment fields, complete invoice/payment context, auction details and relative timestamps. Add permission-scoped invoice links, embed snapshots (migration 0007), regression coverage and local light/dark previews.

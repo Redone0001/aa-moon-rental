@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from datetime import timezone as dt_timezone
 from decimal import Decimal, InvalidOperation
 
@@ -9,6 +9,8 @@ from django.utils import timezone
 
 from moon_rental.models import Auction, AuctionLot, AuditEvent, Bid, BillingMode, Moon, Rental
 from moon_rental.permissions import require_access, require_admin, require_manager
+
+ANTI_SNIPING_WINDOW = timedelta(seconds=120)
 
 
 def audit(actor, action, obj, detail=""):
@@ -143,15 +145,26 @@ def place_bid(*, actor, lot_id, amount):
     auction_id = AuctionLot.objects.values_list("auction_id", flat=True).get(pk=lot_id)
     auction = Auction.objects.select_for_update().get(pk=auction_id)
     lot = AuctionLot.objects.select_for_update().get(pk=lot_id)
-    if auction.settled_at or auction.ends_at <= timezone.now():
+    now = timezone.now()
+    if auction.settled_at or auction.ends_at <= now:
         raise ValidationError("Bidding has closed.")
-    if auction.bidding_starts_at and auction.bidding_starts_at > timezone.now():
+    if auction.bidding_starts_at and auction.bidding_starts_at > now:
         raise ValidationError("Bidding has not opened yet.")
     amount = isk(amount)
     top = lot.highest_bid
     if amount < lot.starting_price or (top and amount <= top.amount):
         raise ValidationError("Your bid must meet the minimum and exceed the highest bid.")
     bid = Bid.objects.create(lot=lot, bidder=actor, amount=amount)
+    if auction.ends_at - now <= ANTI_SNIPING_WINDOW:
+        previous_end = auction.ends_at
+        auction.ends_at += ANTI_SNIPING_WINDOW
+        auction.save(update_fields=["ends_at"])
+        audit(
+            actor,
+            "auction.extend",
+            auction,
+            f"Bid {bid.pk}: {previous_end.isoformat()} -> {auction.ends_at.isoformat()}",
+        )
     if top and top.bidder_id != actor.pk:
         from moon_rental.services.discord_messages import outbid_embed
         from moon_rental.services.notifications import queue_dm
