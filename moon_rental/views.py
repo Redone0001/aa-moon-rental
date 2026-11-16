@@ -23,6 +23,7 @@ from moon_rental.permissions import (
     require_admin,
     require_manager,
 )
+from moon_rental.services.extraction import ore_copy_text
 from moon_rental.services.rentals import assign_moon, audit, end_rental, open_auction, place_bid
 from moon_rental.services.sync import sync_moons
 from moon_rental.services.wallets import (
@@ -135,6 +136,7 @@ def auction_detail(request, auction_id):
             "lot": lot,
             "top": top_bids.get(lot.top_id),
             "count": lot.bid_count,
+            "ore_copy": ore_copy_text(lot.moon.pull_30d),
         }
         for lot in lot_page
     ]

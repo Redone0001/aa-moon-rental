@@ -173,6 +173,7 @@ def seed():
         title="Winter expansion · Premium moons",
         moon_ids=[moons[i].pk for i in [0, 3, 4]],
         ends_at=now + timedelta(days=4, hours=2),
+        starts_on=(now + timedelta(days=6)).date(),
         duration_months=3,
         minimum_bid="100000000",
     )

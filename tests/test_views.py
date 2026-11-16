@@ -34,6 +34,30 @@ def test_auction_shows_bidder_and_composition(client, auction, pilot):
     )
 
 
+def test_auction_ore_export_is_hidden_and_available_to_members(client, auction, pilot, moon):
+    moon.pull_30d = {
+        "volume_per_day": "720000",
+        "ores": [{"name": "Loparite", "units": 756000}],
+        "value": "94408200.00",
+        "pricing": "ore",
+    }
+    moon.save()
+    client.force_login(pilot)
+    response = client.get(reverse("moon_rental:auction", args=[auction.pk]))
+    html = response.content.decode()
+    assert 'data-copy="Loparite\t756000"' in html
+    assert "Copy 30-day ore" in html and "94,41m ISK" in html
+    assert "Moon mining estimation ore pricing, before cost and refining." in html
+    assert "<textarea" not in html
+
+
+def test_auction_without_pull_data_never_invents_units(client, auction, pilot):
+    client.force_login(pilot)
+    html = client.get(reverse("moon_rental:auction", args=[auction.pk])).content.decode()
+    assert "Estimate unavailable" in html
+    assert "data-copy=" not in html
+
+
 def test_user_only_sees_own_invoices(client, manager, pilot, other_pilot, wallet, moon):
     rental = assign_moon(
         actor=manager,

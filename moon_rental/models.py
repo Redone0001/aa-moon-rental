@@ -30,6 +30,7 @@ class Moon(models.Model):
     rarity = models.PositiveIntegerField(default=0, db_index=True)
     composition = models.JSONField(default=list)
     estimated_value = models.DecimalField(max_digits=24, decimal_places=2, null=True)
+    pull_30d = models.JSONField(default=dict, blank=True)
     available = models.BooleanField(default=True)
     synced_at = models.DateTimeField()
     current_rental = models.OneToOneField(
@@ -68,6 +69,7 @@ class SurveyOre(models.Model):
 
 class Auction(models.Model):
     title = models.CharField(max_length=160)
+    starts_on = models.DateField(help_text="Rent starts at 00:00 UTC on this date")
     ends_at = models.DateTimeField(db_index=True)
     duration_months = models.PositiveSmallIntegerField()
     billing_mode = models.CharField(

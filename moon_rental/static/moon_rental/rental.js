@@ -62,16 +62,40 @@ document.querySelectorAll("[data-moon-selector]").forEach((selector) => {
     update();
 });
 
+async function copyText(text) {
+    if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return;
+    }
+    const field = document.createElement("textarea");
+    field.value = text;
+    field.readOnly = true;
+    field.style.cssText = "position:fixed;opacity:0;pointer-events:none";
+    const focused = document.activeElement;
+    document.body.append(field);
+    try {
+        field.select();
+        if (!document.execCommand("copy")) throw new Error("Copy unavailable");
+    } finally {
+        field.remove();
+        focused?.focus();
+    }
+}
+
+const copyResets = new WeakMap();
 document.addEventListener("click", async (event) => {
     const button = event.target.closest(".mr-copy");
     if (!button) return;
     const status = document.getElementById("copy-status");
+    button.dataset.copyLabel ||= button.textContent;
+    clearTimeout(copyResets.get(button));
     try {
-        await navigator.clipboard.writeText(button.dataset.copy);
+        await copyText(button.dataset.copy);
         button.textContent = "Copied";
-        if (status) status.textContent = "Payment detail copied to clipboard.";
-        setTimeout(() => { button.textContent = "Copy"; }, 1800);
+        if (status) status.textContent = button.dataset.copyMessage || "Payment detail copied to clipboard.";
     } catch (_) {
-        if (status) status.textContent = "Copy unavailable. Select and copy the payment detail manually.";
+        if (status) status.textContent = "Copy unavailable. Allow clipboard access in your browser and try again.";
+    } finally {
+        copyResets.set(button, setTimeout(() => { button.textContent = button.dataset.copyLabel; }, 1800));
     }
 });

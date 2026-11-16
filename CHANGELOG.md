@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Copy fixed 30-day uncompressed ore quantities from auction cards, with a gross value estimate using snapshotted Moon Mining volume and pricing.
+- Add a separate day-first rent start date above the bidding deadline; award scheduled rentals at close and start the lease term and billing on the advertised start. Preserve legacy auction starts on upgrade.
+
 - Restrict the moon catalogue, individual catalogue details and CSV export to rental managers and admins; members retain auction bidding, personal rentals and invoices.
 - Export the moon catalogue to CSV, including all search results, survey composition, exact estimated values and rental/auction status.
 - Add combined region, constellation, rarity and survey-ore filters and moon/system search to auction creation, direct assignment and bidding.
