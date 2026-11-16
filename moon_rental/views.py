@@ -1,3 +1,5 @@
+import json
+from datetime import date
 from functools import wraps
 
 from django.contrib import messages
@@ -25,6 +27,7 @@ from moon_rental.permissions import (
 )
 from moon_rental.services.extraction import ore_copy_text
 from moon_rental.services.rentals import assign_moon, audit, end_rental, open_auction, place_bid
+from moon_rental.services.reporting import monthly_summary
 from moon_rental.services.structures import attach_moon_structures
 from moon_rental.services.sync import sync_moons
 from moon_rental.services.wallets import (
@@ -79,7 +82,9 @@ def index(request):
         my_count=rentals.count(),
         open_count=invoices.count(),
         due=sum(invoice.outstanding for invoice in invoices),
-        auction_count=auctions.filter(ends_at__gt=timezone.now()).count(),
+        auction_count=auctions.filter(ends_at__gt=timezone.now())
+        .filter(Q(bidding_starts_at=None) | Q(bidding_starts_at__lte=timezone.now()))
+        .count(),
     )
 
 
@@ -128,6 +133,9 @@ def auction_detail(request, auction_id):
         .annotate(bid_count=Count("bids"), top_id=Subquery(highest.values("pk")[:1]))
         .order_by("moon__name", "pk")
     )
+    outcome = request.GET.get("outcome", "")
+    if auction.settled_at and outcome in {"rented", "unrented"}:
+        lots = lots.filter(winning_bid__isnull=outcome == "unrented")
     lot_page = Paginator(lots, 24).get_page(request.GET.get("page"))
     # Fetch only the highest bids on this page, rather than every bid in the auction.
     top_bids = Bid.objects.select_related("bidder").in_bulk(
@@ -149,7 +157,11 @@ def auction_detail(request, auction_id):
         rows=rows,
         filters=filters,
         lots=lot_page,
-        bidding_open=auction.settled_at is None and auction.ends_at > timezone.now(),
+        outcome=outcome,
+        scheduled=bool(auction.bidding_starts_at and auction.bidding_starts_at > timezone.now()),
+        bidding_open=auction.settled_at is None
+        and auction.ends_at > timezone.now()
+        and (not auction.bidding_starts_at or auction.bidding_starts_at <= timezone.now()),
     )
 
 
@@ -172,17 +184,65 @@ def bid(request, lot_id):
 def moon_selection(request, form_class, field_name):
     """Filter/page POSTs keep terms and choices without attempting to create a lease."""
     browsing = request.method == "POST" and (
-        request.POST.get("action") in {"filter", "clear_filters", "select_page", "clear_selection"}
+        request.POST.get("action")
+        in {"filter", "clear_filters", "select_page", "clear_selection", "search_history"}
         or "moon_page" in request.POST
         or "remove_moon" in request.POST
+        or "reuse_auction" in request.POST
+        or "auction_page" in request.POST
     )
-    form = form_class(request.POST if request.method == "POST" and not browsing else None)
+    form = form_class(request.POST if request.method == "POST" else None)
     if browsing:
         form.initial = {
-            name: field.widget.value_from_datadict(request.POST, request.FILES, name)
+            name: field.widget.value_from_datadict(form.data, request.FILES, name)
             for name, field in form.fields.items()
         }
+        if "starting_prices" in form.initial:
+            try:
+                form.initial["starting_prices"] = json.loads(
+                    form.initial["starting_prices"] or "{}"
+                )
+            except (ValueError, TypeError):
+                form.initial["starting_prices"] = {}
+        form.is_bound = False
     moons = form.fields[field_name].queryset
+    history_context = {}
+    if form_class is forms.AuctionForm:
+        try:
+            prices = json.loads(form["starting_prices"].value() or "{}")
+            if not isinstance(prices, dict):
+                prices = {}
+        except (ValueError, TypeError):
+            prices = {}
+        if request.POST.get("reuse_auction"):
+            source = get_object_or_404(Auction, pk=request.POST["reuse_auction"])
+            reused = list(source.lots.filter(moon__in=moons))
+            selected = set(form["moons"].value() or [])
+            selected.update(str(lot.moon_id) for lot in reused)
+            form.initial["moons"] = sorted(selected)
+            for lot in reused:
+                prices.setdefault(str(lot.moon_id), str(lot.starting_price))
+            form.initial["starting_prices"] = prices
+            # BoundField caches its initial value when first inspected above.
+            form._bound_fields_cache.pop("moons", None)
+            form._bound_fields_cache.pop("starting_prices", None)
+            messages.info(
+                request,
+                f"Selected {len(reused)} available moons from {source.title}. "
+                f"Skipped {source.lots.count() - len(reused)} rented, reserved or unavailable moons.",
+            )
+        history_query = (
+            (request.POST if request.method == "POST" else request.GET)
+            .get("previous_q", "")
+            .strip()[:150]
+        )
+        history = Auction.objects.annotate(moon_count=Count("lots")).order_by("-created_at", "-pk")
+        if history_query:
+            history = history.filter(title__icontains=history_query)
+        history_context = {
+            "previous_auctions": Paginator(history, 5).get_page(request.POST.get("auction_page")),
+            "previous_q": history_query,
+        }
     filter_data = request.POST if request.method == "POST" else request.GET
     if request.POST.get("action") == "clear_filters":
         filter_data = {}
@@ -192,6 +252,10 @@ def moon_selection(request, form_class, field_name):
     )
     # Materialize only this page: MySQL cannot use a sliced queryset in an IN subquery.
     visible_moons = list(choices.object_list)
+    if form_class is forms.AuctionForm:
+        for moon in visible_moons:
+            moon.auction_starting_price = prices.get(str(moon.pk), "")
+        form.fields[field_name].widget.starting_prices = True
     form.fields[field_name].widget.moons = visible_moons
     values = form[field_name].value()
     if field_name == "moon":
@@ -209,6 +273,7 @@ def moon_selection(request, form_class, field_name):
         form,
         not browsing,
         {
+            **history_context,
             "filters": filters,
             "moon_choices": choices,
             "selection_name": field_name,
@@ -236,7 +301,7 @@ def create_auction(request):
         form=form,
         **selection,
         title="Open a moon auction",
-        submit="Open bidding",
+        submit="Create auction",
         help_text="Select available moons and set the terms. Each moon is awarded independently to its highest bidder.",
     )
 
@@ -332,6 +397,64 @@ def invoice_list(request):
         "invoices",
         invoices=Paginator(invoices, 30).get_page(request.GET.get("page")),
         status=status,
+    )
+
+
+def reporting_month(request):
+    try:
+        return date.fromisoformat(request.GET.get("month", "") + "-01")
+    except ValueError:
+        return timezone.now().date().replace(day=1)
+
+
+@access(require_admin)
+def admin_overview(request):
+    month = reporting_month(request)
+    auctions = Auction.objects.annotate(
+        moon_count=Count("lots"),
+        rented_count=Count("lots", filter=Q(lots__winning_bid__isnull=False)),
+        unrented_count=Count("lots", filter=Q(lots__winning_bid__isnull=True)),
+    ).order_by("-created_at", "-pk")
+    return page(
+        request,
+        "admin_overview",
+        month=month,
+        **monthly_summary(month, actor=request.user),
+        current_auctions=Paginator(auctions.filter(settled_at=None), 6).get_page(
+            request.GET.get("current_page")
+        ),
+        past_auctions=Paginator(auctions.exclude(settled_at=None), 10).get_page(
+            request.GET.get("page")
+        ),
+    )
+
+
+@access(require_admin)
+def invoice_ledger(request):
+    invoices = Invoice.objects.select_related("rental__renter", "rental__moon").prefetch_related(
+        "receipts"
+    )
+    month_value = request.GET.get("month", "")
+    if month_value:
+        month = reporting_month(request)
+        invoices = invoices.filter(period__year=month.year, period__month=month.month)
+    status = request.GET.get("status", "all")
+    if status in Invoice.Status.values:
+        invoices = invoices.filter(status=status)
+    query = request.GET.get("q", "").strip()[:150]
+    if query:
+        invoices = invoices.filter(
+            Q(rental__renter__username__icontains=query)
+            | Q(rental__moon__name__icontains=query)
+            | Q(code__icontains=query)
+        )
+    return page(
+        request,
+        "invoice_ledger",
+        invoices=Paginator(invoices, 30).get_page(request.GET.get("page")),
+        month_value=month_value,
+        status=status,
+        query=query,
     )
 
 

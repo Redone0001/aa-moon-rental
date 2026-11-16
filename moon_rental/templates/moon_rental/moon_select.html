@@ -9,10 +9,12 @@
   {% elif selected_value and not selected_visible %}<input type="hidden" name="{{ widget.name }}" value="{{ selected_value }}">{% endif %}
   <div class="mr-moon-choices">
     {% for moon, checked in choices %}
-      <label class="mr-moon-choice border rounded p-3 d-flex gap-3 align-items-start mb-2" for="{{ widget.attrs.id }}_{{ moon.pk }}">
+      <div class="border rounded p-3 mb-2"><label class="mr-moon-choice d-flex gap-3 align-items-start" for="{{ widget.attrs.id }}_{{ moon.pk }}">
         <input class="form-check-input flex-shrink-0 mt-1" type="{% if multiple %}checkbox{% else %}radio{% endif %}" name="{{ widget.name }}" value="{{ moon.pk }}" id="{{ widget.attrs.id }}_{{ moon.pk }}" {% if checked %}checked{% endif %}>
         <span class="flex-grow-1"><span class="d-flex gap-2 justify-content-between"><strong>{{ moon.name }}</strong><span class="badge text-bg-secondary align-self-start">R{{ moon.rarity }}</span></span><span class="d-block small text-body-secondary">{{ moon.region }}{% if moon.constellation %} · {{ moon.constellation }}{% endif %} · {{ moon.solar_system }}</span><span class="d-block small mt-1">{% include "moon_rental/structures.html" %}</span><span class="d-block small mt-1">{% for ore in moon.composition %}{{ ore.name }} {{ ore.percent|floatformat:1 }}%{% if not forloop.last %} · {% endif %}{% empty %}No survey composition{% endfor %}</span></span>
       </label>
+      {% if starting_prices %}<div class="mt-3"><label class="form-label small" for="starting-price-{{ moon.pk }}">Starting price for this moon (ISK)</label><input class="form-control" id="starting-price-{{ moon.pk }}" name="starting_price_{{ moon.pk }}" type="number" min="0.01" step="any" data-isk-input inputmode="decimal" value="{{ moon.auction_starting_price }}" placeholder="Use default starting price"><div class="form-text">Public to bidders · leave blank to use the default</div></div>{% endif %}
+      </div>
     {% empty %}<p class="text-body-secondary my-4">No available moons match these filters. Clear or adjust the filters to browse again.</p>{% endfor %}
   </div>
 </div>

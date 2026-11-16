@@ -37,12 +37,20 @@ def issue_invoices(rental_id, *, at=None):
     Configuration.objects.select_for_update().get(pk=1)
     wallet = require_default_wallet()
     for period in sorted(missing):
-        Invoice.objects.create(
+        invoice = Invoice.objects.create(
             rental=rental,
             period=period,
             amount=rental.price,
             recipient=wallet,
             recipient_name=wallet.name,
+        )
+        from moon_rental.services.notifications import queue_dm
+
+        queue_dm(
+            key=f"invoice:{invoice.pk}",
+            user_id=rental.renter_id,
+            message=f"Invoice received for {rental.moon.name}: {invoice.amount:,.2f} ISK "
+            f"({period:%B %Y}). Send to {wallet.name} with payment reason {invoice.code}.",
         )
     rental.billed_through = max(missing)
     rental.save(update_fields=["billed_through"])

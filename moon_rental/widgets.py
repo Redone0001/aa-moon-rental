@@ -39,6 +39,7 @@ class MoonSelect(forms.Widget):
         selected = {str(pk) for pk in values or []}
         visible = {str(moon.pk) for moon in self.moons}
         context.update(
+            starting_prices=getattr(self, "starting_prices", False),
             multiple=self.multiple,
             choices=[(moon, str(moon.pk) in selected) for moon in self.moons],
             kept=json.dumps(sorted(selected - visible)),

@@ -5,6 +5,8 @@ from moon_rental import views
 app_name = "moon_rental"
 urlpatterns = [
     path("", views.index, name="index"),
+    path("administration/", views.admin_overview, name="admin_overview"),
+    path("administration/invoices/", views.invoice_ledger, name="invoice_ledger"),
     path("moons/", views.moon_list, name="moons"),
     path("moons/export/", views.moon_export, name="moon_export"),
     path("moons/<int:moon_id>/", views.moon_detail, name="moon"),

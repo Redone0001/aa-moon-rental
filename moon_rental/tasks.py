@@ -4,6 +4,7 @@ from celery import shared_task
 
 from moon_rental.models import WalletAccount
 from moon_rental.services.maintenance import purge_history, run_lifecycle
+from moon_rental.services.notifications import queue_reminders, send_pending
 from moon_rental.services.wallets import scan_wallet
 
 logger = logging.getLogger(__name__)
@@ -12,6 +13,8 @@ logger = logging.getLogger(__name__)
 @shared_task
 def run_regular_updates():
     run_lifecycle()
+    queue_reminders()
+    send_pending()
 
 
 @shared_task

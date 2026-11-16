@@ -99,3 +99,35 @@ document.addEventListener("click", async (event) => {
         copyResets.set(button, setTimeout(() => { button.textContent = button.dataset.copyLabel; }, 1800));
     }
 });
+
+// Keep cents exact when adding 100m, including for values above Number.MAX_SAFE_INTEGER.
+document.querySelectorAll("input[data-bid-step]").forEach((input) => {
+    const cents = (raw) => {
+        if (!/^\d+(\.\d{0,2})?$/.test(raw)) return null;
+        const [whole, fraction = ""] = raw.split(".");
+        return BigInt(whole) * 100n + BigInt(fraction.padEnd(2, "0"));
+    };
+    const adjust = (direction) => {
+        const current = cents(input.value || "0");
+        if (current === null) return;
+        const minimum = cents(input.min) || 1n;
+        const result = current + BigInt(direction) * 10000000000n;
+        const value = result < minimum ? minimum : result;
+        input.value = `${value / 100n}.${String(value % 100n).padStart(2, "0")}`;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    input.addEventListener("keydown", (event) => {
+        if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+            event.preventDefault();
+            adjust(event.key === "ArrowUp" ? 1 : -1);
+        }
+    });
+    input.addEventListener("wheel", (event) => {
+        if (!event.deltaY) return;
+        event.preventDefault();
+        adjust(event.deltaY < 0 ? 1 : -1);
+    }, { passive: false });
+    input.closest("form").querySelectorAll("[data-bid-adjust]").forEach((button) => {
+        button.addEventListener("click", () => adjust(Number(button.dataset.bidAdjust)));
+    });
+});

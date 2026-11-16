@@ -14,7 +14,7 @@
         <a class="nav-link {% if request.resolver_match.url_name == 'my_moons' %}active{% endif %}" href="{% url 'moon_rental:my_moons' %}">My moons</a>
         <a class="nav-link {% if request.resolver_match.url_name == 'invoices' %}active{% endif %}" href="{% url 'moon_rental:invoices' %}">Invoices</a>
         {% if rental_manager %}<a class="nav-link {% if request.resolver_match.url_name == 'rentals' %}active{% endif %}" href="{% url 'moon_rental:rentals' %}">Assignments</a>{% endif %}
-        {% if rental_admin %}<a class="nav-link {% if request.resolver_match.url_name == 'wallets' %}active{% endif %}" href="{% url 'moon_rental:wallets' %}">Wallet accounts</a>{% endif %}
+        {% if rental_admin %}<a class="nav-link {% if request.resolver_match.url_name == 'admin_overview' or request.resolver_match.url_name == 'invoice_ledger' %}active{% endif %}" href="{% url 'moon_rental:admin_overview' %}">Administration</a><a class="nav-link {% if request.resolver_match.url_name == 'wallets' %}active{% endif %}" href="{% url 'moon_rental:wallets' %}">Wallet accounts</a>{% endif %}
     </nav>
     {% localize off %}{% timezone "UTC" %}{% block rental_content %}{% endblock %}{% endtimezone %}{% endlocalize %}
     <div class="text-body-secondary small border-top mt-5 pt-3 mb-3 d-flex justify-content-between flex-wrap gap-2"><span>Moon Rental · Alliance Auth</span><span>All dates and billing periods are UTC · ISK</span></div>

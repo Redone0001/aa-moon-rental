@@ -81,6 +81,9 @@ def open_auction(
     duration_months,
     billing_mode=BillingMode.MONTHLY,
     minimum_bid="1.00",
+    bidding_starts_at=None,
+    starting_prices=None,
+    reminder_hours=None,
 ):
     require_manager(actor)
     terms(duration_months, billing_mode)
@@ -90,8 +93,22 @@ def open_auction(
         raise ValidationError("Enter an auction title of up to 160 characters.")
     if timezone.is_naive(ends_at) or ends_at <= now:
         raise ValidationError("The bidding deadline must be in the future, with a timezone.")
+    if bidding_starts_at and (timezone.is_naive(bidding_starts_at) or bidding_starts_at >= ends_at):
+        raise ValidationError("Bidding must start before the deadline, with a timezone.")
+    reminder_hours = [24, 12, 6, 1] if reminder_hours is None else reminder_hours
+    if not isinstance(reminder_hours, list) or any(
+        type(hour) is not int or hour not in {24, 12, 6, 1} for hour in reminder_hours
+    ):
+        raise ValidationError("Choose reminder hours from 24, 12, 6 and 1.")
     validate_rent_start(starts_on, ends_at)
     ids = set(moon_ids)
+    minimum_bid = isk(minimum_bid)
+    try:
+        prices = {int(pk): isk(value) for pk, value in (starting_prices or {}).items()}
+    except (AttributeError, ValueError, TypeError) as exc:
+        raise ValidationError("Invalid per-moon starting prices.") from exc
+    if not set(prices).issubset(ids):
+        raise ValidationError("Starting prices must belong to selected moons.")
     moons = list(Moon.objects.select_for_update().filter(pk__in=ids).order_by("pk"))
     if not moons or len(moons) != len(ids):
         raise ValidationError("Select at least one synced moon.")
@@ -101,15 +118,19 @@ def open_auction(
             raise ValidationError(f"{moon.name} is rented, reserved or no longer in moonmining.")
     auction = Auction.objects.create(
         title=title.strip(),
+        bidding_starts_at=bidding_starts_at or now,
+        reminder_hours=sorted(set(reminder_hours), reverse=True),
         ends_at=ends_at,
         starts_on=starts_on,
         duration_months=duration_months,
         billing_mode=billing_mode,
-        minimum_bid=isk(minimum_bid),
+        minimum_bid=minimum_bid,
         created_by=actor,
     )
     for moon in moons:
-        lot = AuctionLot.objects.create(auction=auction, moon=moon)
+        lot = AuctionLot.objects.create(
+            auction=auction, moon=moon, starting_price=prices.get(moon.pk, minimum_bid)
+        )
         moon.reserved_lot = lot
         moon.save(update_fields=["reserved_lot"])
     audit(actor, "auction.open", auction)
@@ -124,11 +145,22 @@ def place_bid(*, actor, lot_id, amount):
     lot = AuctionLot.objects.select_for_update().get(pk=lot_id)
     if auction.settled_at or auction.ends_at <= timezone.now():
         raise ValidationError("Bidding has closed.")
+    if auction.bidding_starts_at and auction.bidding_starts_at > timezone.now():
+        raise ValidationError("Bidding has not opened yet.")
     amount = isk(amount)
     top = lot.highest_bid
-    if amount < auction.minimum_bid or (top and amount <= top.amount):
+    if amount < lot.starting_price or (top and amount <= top.amount):
         raise ValidationError("Your bid must meet the minimum and exceed the highest bid.")
     bid = Bid.objects.create(lot=lot, bidder=actor, amount=amount)
+    if top and top.bidder_id != actor.pk:
+        from moon_rental.services.notifications import queue_dm
+
+        queue_dm(
+            key=f"outbid:{bid.pk}",
+            user_id=top.bidder_id,
+            message=f"You have been outbid on {lot.moon.name} in {auction.title}. "
+            f"New highest bid: {amount:,.2f} ISK. Bidding closes {auction.ends_at:%d/%m/%Y %H:%M} UTC.",
+        )
     audit(actor, "bid.place", bid)
     return bid
 

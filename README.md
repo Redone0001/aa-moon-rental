@@ -9,13 +9,17 @@ An Alliance Auth module for auctioning surveyed moons, managing leases and match
 - Admin-only synchronization of moon names, systems, regions, constellations, rarity, ore distribution and value estimates from `moonmining`. Source data is never modified. Removed moons cannot be offered again; existing leases remain accessible.
 - Optional integration with [aa-structures](https://pypi.org/project/aa-structures/) shows each moon's structure type and name, for example `Metenox Moon Drill "My metenox name"`, in the catalogue, moon details, assignment/auction selectors, rental assignments and My moons. Multiple structures are listed separately. Details come directly from locally synced Structures data and follow its visibility permissions.
 - The moon catalogue, individual catalogue details and **Export CSV** are restricted to rental managers and admins. CSV downloads include all moons matching the current search across every page, with moon IDs, names, systems, regions, constellations, rarity, survey composition, exact estimated monthly ISK values, status and UTC sync times. Files use UTF-8 with a BOM for spreadsheet compatibility; formula-like text is escaped.
-- Managers open auctions for multiple available moons, choose a rent start date (`dd/mm/yyyy`) and a UTC bidding deadline (`dd/mm/yyyy hh:mm`), term of 1–120 months, minimum bid and monthly (default) or single-payment billing. The rent starts at 00:00 UTC on a date after bidding closes, leaving time for in-game setup.
+- Managers create auctions for multiple available moons, choose an optional scheduled UTC bidding start, a rent start date (`dd/mm/yyyy`) and a UTC bidding deadline (`dd/mm/yyyy hh:mm`), term of 1–120 months, default and individual public starting prices, and monthly (default) or single-payment billing. The rent starts at 00:00 UTC on a date after bidding closes, leaving time for in-game setup.
 - Members see each moon's survey, highest bidder and bid amount. **Copy 30-day ore** copies estimated uncompressed ore units as tab-separated item/quantity rows for appraisal tools and spreadsheets without displaying the ore list. An estimated 30-day gross ISK value appears when all required ore prices are available. New bids must strictly exceed the current highest bid. Bids are binding; there is no withdrawal or early settlement endpoint.
+- Auction bid arrows, keyboard arrows and the mouse wheel adjust the amount by exactly **100 million ISK**, preserving cents and clamping at the moon’s starting price. Exact manually entered bids remain supported and are validated on the server.
 - Every ISK input shows a live compact preview, such as `1,2 b ISK`, while submitting the original exact amount. Previews use `k`, `m`, `b` and `t` for thousands, millions, billions and trillions.
 - Highest and winning bids use the same compact units (for example, `1,2b ISK`), with the full exact amount shown underneath.
 - Each moon is independently awarded at the deadline. Settlement is automatic and repeatable. An admin can end/correct an assignment; managers cannot alter existing leases, including auction awards.
 - Managers can directly assign available moons at a fixed rent. Members see current and past leases under **My moons**.
 - Auction creation and direct assignment offer paginated moon selectors with combined region, constellation, rarity and survey-ore filters, plus moon/system search. Selections and rental terms survive filtering and page changes. Auction selection supports selecting a page, removing individual selections and clearing selections. The bidding page has the same filters and pagination.
+- An admin **Administration** overview combines all concurrent rental periods: moons currently rented, all open invoices, current monthly recurring rental income, and a selectable month’s expected revenue, confirmed collections and percentage paid. Current/scheduled auctions and paginated past auctions link to rented/unrented outcomes. A searchable, paginated **global invoice ledger** shows renter, moon, reference, amount, paid amount, remaining balance and status.
+- Auction creation includes a searchable, paginated previous-auction picker, newest first. Add available moons and their individual starting prices while retaining current selections and terms; rented, reserved and unavailable moons are skipped.
+- Optional Discord webhook reminders at selected 24h/12h/6h/1h thresholds; optional Discord Multiverse DMs for outbids, newly issued invoices and partial/full payments. Delivery failures are retried independently of financial transactions.
 - Calendar-month invoices, copyable payment references such as `moon-rental-A1B2.C3D4`, exact ISK amounts and recipient names. Managers see open, paid and void invoices for all renters; members see only their own.
 - Multiple SSO-authorized character or corporation wallets, with exactly one default once connected. Corporations read **master wallet / division 1 only**.
 - Incoming donations are matched by invoice reference. Partial payments work; duplicate journal entries cannot pay twice. Only matched payment receipts are stored, never the raw wallet journal.
@@ -56,7 +60,7 @@ CELERYBEAT_SCHEDULE["moon-rental-retention"] = {
 
 Run `python manage.py migrate` and `python manage.py collectstatic --noinput`, then restart Auth's web, Celery worker and beat services. The app registers its own menu and URLs at `/moon-rental/`.
 
-Upgrades also require migration and static collection. Migration `0005` preserves existing auctions' original deadline-based rent starts. After upgrading, an admin must run **Sync Moon Mining** to populate the new 30-day estimates; the copy button stays disabled until sufficient source data is available. Migration `0004` indexes ores from existing survey snapshots and backfills constellations from locally stored Eve Universe moons without ESI calls. If a constellation is missing locally, the next admin **Sync Moon Mining** fills it from the source survey.
+Upgrades also require migration and static collection. Migration `0006` adds scheduled bidding, starting-price snapshots and the notification queue. Existing auctions stay open according to their existing deadlines; each existing lot inherits its auction’s original minimum bid. Migration `0005` preserves existing auctions' original deadline-based rent starts. After upgrading, an admin must run **Sync Moon Mining** to populate the new 30-day estimates; the copy button stays disabled until sufficient source data is available. Migration `0004` indexes ores from existing survey snapshots and backfills constellations from locally stored Eve Universe moons without ESI calls. If a constellation is missing locally, the next admin **Sync Moon Mining** fills it from the source survey.
 
 For structure details, install and configure [aa-structures](https://aa-structures.readthedocs.io/) in the same Auth instance, including `"structures"` in `INSTALLED_APPS`. The optional dependency extra `.[structures]` installs aa-structures 4.x (4.1+), verified with Alliance Auth 5.6, Django 5.2, django-esi 10.1 and Eve Universe 2.2. Give viewers `structures.basic_access` plus the appropriate `structures.view_corporation_structures`, `structures.view_alliance_structures` or `structures.view_all_structures` permission. Rental permissions alone do not grant structure visibility.
 
@@ -81,11 +85,11 @@ Assign permissions to AA groups/states in Django admin:
 | `moon_rental.manage_rentals` | Member capabilities plus moon catalogue, moon details, CSV export, auctions, direct assignments and all invoices |
 | `moon_rental.administer_rentals` | Manager capabilities plus sync, wallets, assignment corrections and invoice voiding |
 
-Managers and admins inherit app capabilities; they do not need all three permissions. Merely being Django `is_staff` does not grant rental administration. Superusers have all capabilities. The app's Django admin model screens are read-only so assignments, money records and audit trails cannot be bypassed with ordinary model editing.
+Managers and admins inherit app capabilities; they do not need all three permissions. Merely being Django `is_staff` does not grant rental administration. Superusers have all capabilities. Assignments, money records and audit trails remain read-only in Django admin. The singleton **Moon Rental → Configuration** screen permits rental admins with Django staff access to edit only Discord delivery settings; wallet selection still goes through Wallet accounts.
 
 1. A rental admin connects a payment wallet (the first becomes the default) and syncs Moon Mining.
 2. A manager opens an auction or assigns a free moon. Use **Find moons** to combine region, constellation, rarity and ore filters; ore matches any positive surveyed percentage, and rarity is the moon's overall survey class. Choose moons across pages before submitting the rental terms. A reserved or rented moon cannot be selected again.
-3. Members bid; the lifecycle task assigns winners on or after the deadline. Winning moons remain reserved as scheduled rentals until the advertised rent start. No-bid moons become available again.
+3. Members can inspect scheduled auctions immediately; bids are accepted only from the configured opening time until the deadline. No opening worker is required to enable bidding. The lifecycle task assigns winners on or after the deadline. Winning moons remain reserved as scheduled rentals until the advertised rent start. No-bid moons become available again.
 4. Renters pay the invoice recipient in EVE, copying the reference into the ISK transfer reason. Wallet scans confirm payment.
 
 ## Billing and reconciliation rules
@@ -100,6 +104,25 @@ Managers and admins inherit app capabilities; they do not need all three permiss
 - References must be included correctly in the transfer reason. Incorrect-reference payments need an in-game correction; there is deliberately no unaudited “mark paid” endpoint. Admins can void an open invoice with an explanation. Voiding does not refund payments.
 - Ending/correcting a lease stops future billing. Existing invoices keep their original renter, amount and recipient; use the separate admin-only void action if appropriate. Reassignment creates a new lease and audit trail.
 - ESI journals have a limited upstream history. Keep scans running and resolve failed scans promptly; transfers that disappear from ESI before a successful scan cannot be recovered by this module. Requests have timeouts, all journal pages are scanned, and one wallet failure does not stop scans of other accounts.
+
+## Administration and monthly revenue
+
+Open **Administration** with `moon_rental.administer_rentals`. The rented count includes leases active today; future reserved leases appear with their auctions and assignments. Monthly rental income sums active monthly leases across all auctions and direct assignments, excluding one-payment terms.
+
+The selected month’s expected revenue uses non-void invoice snapshots plus charges not yet issued under the agreed billing rules. Monthly leases count only when active on that month’s first day; one-payment leases count in their starting month. Issued invoices retain their original amounts even after a lease ends. Voided invoices and charges already covered by the billing cursor are not forecast again. The paid percentage includes partial payments, caps overpayments at each invoice’s amount, and divides by the month’s expected revenue. It measures collections against that month’s invoices rather than the calendar date of a transfer.
+
+Click **Open global invoice ledger** for all unpaid invoices, or **View this month’s invoices** for the selected billing month. Filter by renter, moon, reference or status. Unissued forecast charges appear in expected revenue and enter the ledger when the lifecycle task issues them. Past-auction counts describe awards at close; click either count for its moon list, even if a lease has since expired.
+
+## Discord notifications and IRS wallet setup
+
+The existing lifecycle schedule (`run_regular_updates`, every minute) now also queues reminders and delivers pending notifications. Keep the wallet scan schedule enabled for payment confirmations.
+
+1. As a rental admin with Django staff access, open **Django admin → Moon Rental → Configuration**. Set **Discord webhook URL** to an incoming webhook for the public auction channel. Leave it blank to disable public reminders. Only HTTPS `discord.com` webhook URLs are accepted; redirects are not followed. The webhook is independent of Discord Multiverse.
+2. Select the desired 24h, 12h, 6h and 1h reminders while creating each auction. Clear all choices for no reminders. Thresholds before bidding opens are skipped. A delayed worker sends only the latest crossed threshold and retires stale pending reminders. Closed auctions never send pending reminders. Messages suppress automatic mentions.
+3. For private messages, install and configure [allianceauth-discord-multiverse](https://pypi.org/project/allianceauth-discord-multiverse/) in the Auth instance (`aadiscordmultiverse` in `INSTALLED_APPS`). Enter its managed Discord server’s ID in **Discord guild ID** and enable **Discord DM enabled**. Renters must have a linked Multiverse account on that server. Delivery uses Multiverse’s `MultiDiscordUser.uid` and its configured `DISCORD_BOT_TOKEN`; no second bot token is stored by Moon Rental. If the module, server ID, bot token or linked account is absent, private delivery is skipped. The rest of Moon Rental continues to work.
+4. Under **Wallet accounts**, connect the actual **Womp IRS Department** corporation wallet with an authorized character and select it as default. Corporation scans read master wallet/division 1. Each new invoice snapshots that recipient and generates its own unique reference. The renter copies that reference into the EVE payment reason; scans recognize partial and full incoming donations and queue a DM after each newly matched receipt. No live wallet connection is created by the demo or screenshot script.
+
+Outbid DMs go to the previous highest bidder when a different member takes the lead. Raising your own bid does not send a DM. Invoice DMs are generated when a charge is actually issued, including the reference, exact amount and recipient. All events enter a transactional delivery queue so rollbacks cannot send false notices and duplicate wallet entries cannot create duplicate payment notices. Delivery uses timeouts, rate-limit backoff and retries without logging credentials or raw response bodies. Delivery cannot be guaranteed exactly once after a network interruption; stable DM nonces reduce immediate duplicates. Discord privacy settings may prevent DMs.
 
 ## Fixed 30-day ore estimates
 
@@ -148,11 +171,20 @@ python manage.py runserver 127.0.0.1:8000 --noreload
 python scripts/screenshots.py
 python scripts/screenshot_filters.py
 python scripts/screenshot_estimates.py
+python scripts/screenshot_administration.py
 ```
 
 Demo data uses fictional renters and survey values. Demo users have unusable passwords. The screenshot script creates a local Django session, exercises bidding and clipboard copying, and captures the real pages at desktop/mobile sizes and under Darkly/Flatly. **Never use test settings or seed scripts against a production database.**
 
 ## Screenshots
+
+New administration and auction controls (fictional demo data):
+
+![Administration overview](docs/screenshots/admin-overview-darkly.png)
+![Global invoice ledger](docs/screenshots/admin-invoice-ledger-flatly.png)
+
+[Scheduled auction creation](docs/screenshots/auction-schedule-create-darkly.png) · [100m bid controls](docs/screenshots/auction-bid-controls-flatly.png) · [Mobile administration](docs/screenshots/admin-overview-mobile.png) · [Discord settings](docs/screenshots/discord-configuration-darkly.png)
+
 
 Screenshots are of the running module inside Alliance Auth, using fictional data.
 

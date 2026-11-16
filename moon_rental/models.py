@@ -5,6 +5,7 @@ from decimal import Decimal
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.utils import timezone
 
 
 def invoice_code():
@@ -12,6 +13,10 @@ def invoice_code():
     return "moon-rental-" + ".".join(
         "".join(secrets.choice(alphabet) for _ in range(4)) for _ in range(2)
     )
+
+
+def default_reminder_hours():
+    return [24, 12, 6, 1]
 
 
 class BillingMode(models.TextChoices):
@@ -69,6 +74,8 @@ class SurveyOre(models.Model):
 
 class Auction(models.Model):
     title = models.CharField(max_length=160)
+    bidding_starts_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    reminder_hours = models.JSONField(default=default_reminder_hours, blank=True)
     starts_on = models.DateField(help_text="Rent starts at 00:00 UTC on this date")
     ends_at = models.DateTimeField(db_index=True)
     duration_months = models.PositiveSmallIntegerField()
@@ -91,6 +98,7 @@ class Auction(models.Model):
 class AuctionLot(models.Model):
     auction = models.ForeignKey(Auction, on_delete=models.CASCADE, related_name="lots")
     moon = models.ForeignKey(Moon, on_delete=models.PROTECT, related_name="lots")
+    starting_price = models.DecimalField(max_digits=20, decimal_places=2)
     winning_bid = models.ForeignKey("Bid", null=True, on_delete=models.SET_NULL, related_name="+")
 
     class Meta:
@@ -174,9 +182,17 @@ class Configuration(models.Model):
 
     id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
     default_wallet = models.ForeignKey(WalletAccount, null=True, on_delete=models.PROTECT)
+    discord_webhook_url = models.URLField(max_length=500, blank=True)
+    discord_dm_enabled = models.BooleanField(default=True)
+    discord_guild_id = models.PositiveBigIntegerField(
+        null=True, blank=True, help_text="Discord Multiverse server ID used for renter DMs."
+    )
 
     class Meta:
         default_permissions = ()
+
+    def __str__(self):
+        return "Moon Rental settings"
 
 
 class Invoice(models.Model):
@@ -236,6 +252,25 @@ class AuditEvent(models.Model):
     object_id = models.CharField(max_length=64)
     detail = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        default_permissions = ()
+
+
+class Notification(models.Model):
+    """Transactional delivery queue; contains no webhook or bot credentials."""
+
+    key = models.CharField(max_length=100, unique=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.CASCADE, related_name="+"
+    )
+    auction = models.ForeignKey(Auction, null=True, on_delete=models.CASCADE)
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    delivered_at = models.DateTimeField(null=True)
+    skipped_at = models.DateTimeField(null=True)
+    attempts = models.PositiveIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
         default_permissions = ()
