@@ -6,6 +6,11 @@ from moon_rental.models import BillingMode, Configuration, Invoice, Rental
 from moon_rental.services.rentals import require_default_wallet, utc_day
 
 
+def monthly_invoice_period(starts_on, month):
+    """Keep the original start day, clamping only for shorter months."""
+    return month.replace(day=1) + relativedelta(day=starts_on.day)
+
+
 @transaction.atomic
 def issue_invoices(rental_id, *, at=None):
     at = at or timezone.now()
@@ -19,17 +24,14 @@ def issue_invoices(rental_id, *, at=None):
     if rental.billing_mode == BillingMode.ONCE:
         periods = [] if rental.billed_through else [rental.starts_on]
     else:
-        period = (
-            (rental.billed_through + relativedelta(months=1))
-            if rental.billed_through
-            else rental.starts_on.replace(day=1)
-        )
-        if period < rental.starts_on:
-            period += relativedelta(months=1)
+        month = (rental.billed_through or rental.starts_on).replace(day=1)
+        if rental.billed_through:
+            # Existing first-of-month invoices already cover their billing month.
+            month += relativedelta(months=1)
         periods = []
-        while period <= last_day:
+        while (period := monthly_invoice_period(rental.starts_on, month)) <= last_day:
             periods.append(period)
-            period += relativedelta(months=1)
+            month += relativedelta(months=1)
     missing = set(periods) - set(rental.invoices.values_list("period", flat=True))
     if not missing:
         return 0
