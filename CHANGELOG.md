@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Restrict the moon catalogue, individual catalogue details and CSV export to rental managers and admins; members retain auction bidding, personal rentals and invoices.
 - Export the moon catalogue to CSV, including all search results, survey composition, exact estimated values and rental/auction status.
 - Add combined region, constellation, rarity and survey-ore filters and moon/system search to auction creation, direct assignment and bidding.
 - Paginate moon choices, retain selections and terms across filters/pages, and support bulk page selection.

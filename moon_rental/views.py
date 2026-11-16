@@ -91,7 +91,7 @@ def catalogue_moons(request):
     return moons, query
 
 
-@access()
+@access(require_manager)
 def moon_list(request):
     moons, query = catalogue_moons(request)
     moons = moons.select_related("current_rental__renter", "reserved_lot__auction")
@@ -100,13 +100,13 @@ def moon_list(request):
     )
 
 
-@access()
+@access(require_manager)
 def moon_export(request):
     moons, _ = catalogue_moons(request)
     return moon_catalogue_csv(moons)
 
 
-@access()
+@access(require_manager)
 def moon_detail(request, moon_id):
     moon = get_object_or_404(Moon, pk=moon_id)
     lots = moon.lots.select_related("auction").filter(auction__settled_at=None)
