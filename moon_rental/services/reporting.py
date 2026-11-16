@@ -8,6 +8,7 @@ from django.utils import timezone
 
 from moon_rental.models import BillingMode, Invoice, Rental
 from moon_rental.permissions import require_admin
+from moon_rental.services.billing import monthly_invoice_period
 from moon_rental.services.rentals import utc_day
 
 ZERO = Decimal("0")
@@ -28,13 +29,17 @@ def monthly_summary(month, *, actor, at=None):
     # Forecast only genuinely unissued charges. Voids and retained billing cursors
     # must not resurrect an intentionally closed or purged invoice.
     for rental in Rental.objects.filter(starts_on__lt=end, ends_on__gt=month):
-        period = month if rental.billing_mode == BillingMode.MONTHLY else rental.starts_on
+        period = (
+            monthly_invoice_period(rental.starts_on, month)
+            if rental.billing_mode == BillingMode.MONTHLY
+            else rental.starts_on
+        )
         if (
             rental.pk not in issued
             and month <= period < end
             and rental.starts_on <= period < rental.ends_on
             and (not rental.ended_at or utc_day(rental.ended_at) >= period)
-            and (not rental.billed_through or rental.billed_through < period)
+            and (not rental.billed_through or rental.billed_through < month)
         ):
             predicted += rental.price
     today = utc_day(at)

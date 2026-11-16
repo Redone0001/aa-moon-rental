@@ -13,6 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from moon_rental.models import Auction, AuctionLot, Invoice, Moon, Rental
+from moon_rental.services.billing import issue_invoices
 from moon_rental.services.rentals import assign_moon, open_auction, place_bid, settle_auction
 from moon_rental.services.reporting import monthly_summary
 from moon_rental.services.wallets import record_payment
@@ -211,6 +212,56 @@ def test_voids_one_time_charges_and_overpayments(admin_user, manager, pilot, moo
     invoice.status = Invoice.Status.VOID
     invoice.save()
     assert monthly_summary(date(2030, 2, 1), actor=admin_user, at=at)["predicted"] == 0
+
+
+def test_monthly_forecast_uses_start_date_and_short_month_anniversaries(
+    admin_user, manager, pilot, moon, wallet
+):
+    auction = open_auction(
+        actor=manager,
+        title="Month-end forecast",
+        moon_ids=[moon.pk],
+        ends_at=datetime(2030, 1, 1, tzinfo=tz.utc),
+        starts_on=date(2030, 1, 31),
+        duration_months=3,
+    )
+    place_bid(actor=pilot, lot_id=auction.lots.get().pk, amount="100")
+    settle_auction(auction.pk, at=auction.ends_at)
+    rental = Rental.objects.get()
+    assert not rental.invoices.exists()
+    for month in [1, 2, 3]:
+        summary = monthly_summary(date(2030, month, 1), actor=admin_user)
+        assert summary["predicted"] == 100 and summary["paid"] == 0
+    assert monthly_summary(date(2030, 4, 1), actor=admin_user)["predicted"] == 0
+    assert issue_invoices(rental.pk, at=datetime(2030, 1, 31, tzinfo=tz.utc)) == 1
+    assert monthly_summary(date(2030, 1, 1), actor=admin_user)["predicted"] == 100
+    rental.invoices.update(status=Invoice.Status.VOID)
+    assert monthly_summary(date(2030, 1, 1), actor=admin_user)["predicted"] == 0
+    rental.invoices.all().delete()
+    assert monthly_summary(date(2030, 1, 1), actor=admin_user)["predicted"] == 0
+    # A legacy first-of-month cursor covers February, even without a retained invoice.
+    Rental.objects.filter(pk=rental.pk).update(billed_through=date(2030, 2, 1))
+    assert monthly_summary(date(2030, 2, 1), actor=admin_user)["predicted"] == 0
+    assert monthly_summary(date(2030, 3, 1), actor=admin_user)["predicted"] == 100
+
+
+@pytest.mark.parametrize("end_day,expected", [(27, 0), (28, 100)])
+def test_monthly_forecast_respects_early_end_before_anniversary(
+    admin_user, manager, pilot, moon, wallet, end_day, expected
+):
+    rental = assign_moon(
+        actor=manager,
+        moon_id=moon.pk,
+        renter=pilot,
+        price="100",
+        duration_months=3,
+        at=datetime(2030, 1, 31, tzinfo=tz.utc),
+    )
+    # Delayed billing must use the same cutoff as the forecast for ended leases.
+    Rental.objects.filter(pk=rental.pk).update(ended_at=datetime(2030, 2, end_day, tzinfo=tz.utc))
+    assert monthly_summary(date(2030, 2, 1), actor=admin_user)["predicted"] == expected
+    assert issue_invoices(rental.pk, at=datetime(2030, 5, 1, tzinfo=tz.utc)) == expected // 100
+    assert monthly_summary(date(2030, 2, 1), actor=admin_user)["predicted"] == expected
 
 
 def test_history_outcomes_and_ledger_filters(client, admin_user, manager, auction, pilot, wallet):

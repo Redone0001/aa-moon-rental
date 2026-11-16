@@ -79,49 +79,75 @@ def test_service_rejects_invalid_start(manager, moon, wallet, start):
 
 
 @pytest.mark.parametrize("mode", ["monthly", "once"])
+@pytest.mark.parametrize("start_day", [1, 15, 31])
 def test_award_reserves_moon_without_billing_before_rent_start(
-    manager, pilot, moon, wallet, client, mode
+    manager, pilot, moon, wallet, client, mode, start_day
 ):
     auction = open_auction(
         actor=manager,
         title="Setup window",
         moon_ids=[moon.pk],
         ends_at=datetime(2030, 1, 28, 18, tzinfo=tz.utc),
-        starts_on=date(2030, 2, 1),
+        starts_on=date(2030, 3, start_day),
         duration_months=2,
         billing_mode=mode,
     )
     place_bid(actor=pilot, lot_id=auction.lots.get().pk, amount="100")
     assert settle_auction(auction.pk, at=auction.ends_at) == 1
     rental = Rental.objects.get()
-    assert rental.starts_on == date(2030, 2, 1)
-    assert rental.ends_on == date(2030, 4, 1)
+    assert rental.starts_on == date(2030, 3, start_day)
+    assert rental.ends_on == date(2030, 5, start_day)
     assert not rental.invoices.exists()
     moon.refresh_from_db()
     assert moon.current_rental_id == rental.pk
     client.force_login(pilot)
     assert b"Scheduled" in client.get(reverse("moon_rental:my_moons")).content
-    run_lifecycle(at=datetime(2030, 2, 1, tzinfo=tz.utc))
-    assert rental.invoices.get().period == date(2030, 2, 1)
-    run_lifecycle(at=datetime(2030, 2, 1, tzinfo=tz.utc))
+    starts_at = datetime(2030, 3, start_day, tzinfo=tz.utc)
+    run_lifecycle(at=starts_at - timedelta(seconds=1))
+    assert not rental.invoices.exists()
+    run_lifecycle(at=starts_at)
+    assert rental.invoices.get().period == rental.starts_on
+    run_lifecycle(at=starts_at)
     assert rental.invoices.count() == 1
+    next_at = datetime(2030, 4, min(start_day, 30), tzinfo=tz.utc)
+    run_lifecycle(at=next_at - timedelta(seconds=1))
+    assert rental.invoices.count() == 1
+    run_lifecycle(at=next_at)
+    run_lifecycle(at=next_at)
+    periods = [rental.starts_on, next_at.date()] if mode == "monthly" else [rental.starts_on]
+    assert list(rental.invoices.order_by("period").values_list("period", flat=True)) == periods
+    run_lifecycle(at=datetime(2030, 5, start_day, tzinfo=tz.utc))
+    assert rental.invoices.count() == len(periods)
 
 
-def test_delayed_award_uses_rent_start_and_catches_up_invoices(manager, pilot, moon, wallet):
+@pytest.mark.parametrize("duration", [1, 3])
+def test_delayed_award_uses_rent_start_and_catches_up_invoices(
+    manager, pilot, moon, wallet, duration
+):
     auction = open_auction(
         actor=manager,
         title="Delayed worker",
         moon_ids=[moon.pk],
         ends_at=datetime(2030, 1, 1, tzinfo=tz.utc),
         starts_on=date(2030, 1, 31),
-        duration_months=1,
+        duration_months=duration,
     )
     place_bid(actor=pilot, lot_id=auction.lots.get().pk, amount="100")
-    assert settle_auction(auction.pk, at=datetime(2030, 3, 15, tzinfo=tz.utc)) == 1
+    delayed = datetime(2030, 5, 15, tzinfo=tz.utc)
+    assert settle_auction(auction.pk, at=delayed) == 1
+    run_lifecycle(at=delayed)
+    run_lifecycle(at=delayed)
     rental = Rental.objects.get()
     assert rental.starts_on == date(2030, 1, 31)
-    assert rental.ends_on == date(2030, 2, 28)
-    assert rental.invoices.get().period == date(2030, 2, 1)
+    assert rental.ends_on == (date(2030, 2, 28) if duration == 1 else date(2030, 4, 30))
+    assert (
+        list(rental.invoices.order_by("period").values_list("period", flat=True))
+        == [
+            date(2030, 1, 31),
+            date(2030, 2, 28),
+            date(2030, 3, 31),
+        ][:duration]
+    )
 
 
 def test_start_validation_uses_deadline_utc_day(manager, moon, wallet):
