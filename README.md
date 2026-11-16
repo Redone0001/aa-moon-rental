@@ -60,7 +60,7 @@ CELERYBEAT_SCHEDULE["moon-rental-retention"] = {
 
 Run `python manage.py migrate` and `python manage.py collectstatic --noinput`, then restart Auth's web, Celery worker and beat services. The app registers its own menu and URLs at `/moon-rental/`.
 
-Upgrades also require migration and static collection. Migration `0006` adds scheduled bidding, starting-price snapshots and the notification queue. Existing auctions stay open according to their existing deadlines; each existing lot inherits its auction’s original minimum bid. Migration `0005` preserves existing auctions' original deadline-based rent starts. After upgrading, an admin must run **Sync Moon Mining** to populate the new 30-day estimates; the copy button stays disabled until sufficient source data is available. Migration `0004` indexes ores from existing survey snapshots and backfills constellations from locally stored Eve Universe moons without ESI calls. If a constellation is missing locally, the next admin **Sync Moon Mining** fills it from the source survey.
+Upgrades also require migration and static collection. Migration `0007` adds rich Discord embed snapshots; pending plain-text notifications remain deliverable. Migration `0006` adds scheduled bidding, starting-price snapshots and the notification queue. Existing auctions stay open according to their existing deadlines; each existing lot inherits its auction’s original minimum bid. Migration `0005` preserves existing auctions' original deadline-based rent starts. After upgrading, an admin must run **Sync Moon Mining** to populate the new 30-day estimates; the copy button stays disabled until sufficient source data is available. Migration `0004` indexes ores from existing survey snapshots and backfills constellations from locally stored Eve Universe moons without ESI calls. If a constellation is missing locally, the next admin **Sync Moon Mining** fills it from the source survey.
 
 For structure details, install and configure [aa-structures](https://aa-structures.readthedocs.io/) in the same Auth instance, including `"structures"` in `INSTALLED_APPS`. The optional dependency extra `.[structures]` installs aa-structures 4.x (4.1+), verified with Alliance Auth 5.6, Django 5.2, django-esi 10.1 and Eve Universe 2.2. Give viewers `structures.basic_access` plus the appropriate `structures.view_corporation_structures`, `structures.view_alliance_structures` or `structures.view_all_structures` permission. Rental permissions alone do not grant structure visibility.
 
@@ -122,6 +122,10 @@ The existing lifecycle schedule (`run_regular_updates`, every minute) now also q
 3. For private messages, install and configure [allianceauth-discord-multiverse](https://pypi.org/project/allianceauth-discord-multiverse/) in the Auth instance (`aadiscordmultiverse` in `INSTALLED_APPS`). Enter its managed Discord server’s ID in **Discord guild ID** and enable **Discord DM enabled**. Renters must have a linked Multiverse account on that server. Delivery uses Multiverse’s `MultiDiscordUser.uid` and its configured `DISCORD_BOT_TOKEN`; no second bot token is stored by Moon Rental. If the module, server ID, bot token or linked account is absent, private delivery is skipped. The rest of Moon Rental continues to work.
 4. Under **Wallet accounts**, connect your alliance's preferred character or corporation payment wallet and select it as default. Use an authorized character for corporation wallets; scans read master wallet/division 1. Each new invoice snapshots that recipient and generates its own unique reference. The renter copies that reference into the EVE payment reason; scans recognize partial and full incoming donations and queue a DM after each newly matched receipt. No live wallet connection is created by the demo or screenshot script.
 
+New notifications use Discord embeds with a clickable title linking to the relevant auction or invoice. Invoice and payment embeds include the moon, system, region, billing period and mode, lease dates, invoice total, total paid, recipient name/type/ID, and remaining balance. Payment confirmations also show the latest payment, its date and the receiving account. Separate code blocks provide the exact amount **without grouping separators or an ISK suffix**, the recipient name and the payment reference for copying into EVE. Copy/select behavior depends on the Discord client; no bot interaction or custom clipboard button is required. A partial-payment message repeats all transfer instructions, while a fully paid message clearly states no further payment is needed.
+
+Outbid embeds show the previous bid, the new highest bid, starting price, moon location, billing terms, closing time and lease dates. Public reminder embeds show the auction, moon count, billing terms and lease dates. Discord renders closing/payment timestamps in each viewer's timezone, including relative time; lease dates remain UTC. Invoice title links filter to that exact invoice and preserve the existing renter/manager access checks. Each message snapshots its event-time values, so older payment messages keep their original balances rather than silently changing after later receipts.
+
 Outbid DMs go to the previous highest bidder when a different member takes the lead. Raising your own bid does not send a DM. Invoice DMs are generated when a charge is actually issued, including the reference, exact amount and recipient. All events enter a transactional delivery queue so rollbacks cannot send false notices and duplicate wallet entries cannot create duplicate payment notices. Delivery uses timeouts, rate-limit backoff and retries without logging credentials or raw response bodies. Delivery cannot be guaranteed exactly once after a network interruption; stable DM nonces reduce immediate duplicates. Discord privacy settings may prevent DMs.
 
 ## Fixed 30-day ore estimates
@@ -172,11 +176,18 @@ python scripts/screenshots.py
 python scripts/screenshot_filters.py
 python scripts/screenshot_estimates.py
 python scripts/screenshot_administration.py
+python scripts/screenshot_discord_embeds.py
 ```
 
 Demo data uses fictional renters and survey values. Demo users have unusable passwords. The screenshot script creates a local Django session, exercises bidding and clipboard copying, and captures the real pages at desktop/mobile sizes and under Darkly/Flatly. **Never use test settings or seed scripts against a production database.**
 
 ## Screenshots
+
+Discord embed previews, rendered locally from the actual payload builders using fictional data (these are not screenshots from a connected Discord client):
+
+![Invoice and payment embed previews](docs/screenshots/discord-payments-dark.png)
+
+[Light payment previews](docs/screenshots/discord-payments-light.png) · [Auction notification previews](docs/screenshots/discord-auctions-light.png)
 
 New administration and auction controls (fictional demo data):
 
